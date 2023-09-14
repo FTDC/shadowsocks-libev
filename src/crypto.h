@@ -24,24 +24,31 @@
 #define _CRYPTO_H
 
 #ifndef __MINGW32__
+
 #include <sys/socket.h>
+
 #endif
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 
 #ifdef HAVE_STDINT_H
+
 #include <stdint.h>
+
 #elif HAVE_INTTYPES_H
 #include <inttypes.h>
 #endif
 
 /* Definitions for libsodium */
 #include <sodium.h>
+
 typedef crypto_aead_aes256gcm_state aes256gcm_ctx;
 /* Definitions for mbedTLS */
 #include <mbedtls/cipher.h>
 #include <mbedtls/md.h>
+
 typedef mbedtls_cipher_info_t cipher_kt_t;
 typedef mbedtls_cipher_context_t cipher_evp_t;
 typedef mbedtls_md_info_t digest_type_t;
@@ -88,10 +95,10 @@ typedef mbedtls_md_info_t digest_type_t;
 #endif
 
 typedef struct buffer {
-    size_t idx;
-    size_t len;
-    size_t capacity;
-    char   *data;
+    size_t idx;         // 缓冲区指针的定位
+    size_t len;         // 内容长度
+    size_t capacity;    // buf容量
+    char *data;         // 数据内容
 } buffer_t;
 
 typedef struct {
@@ -119,36 +126,50 @@ typedef struct {
 typedef struct crypto {
     cipher_t *cipher;
 
-    int(*const encrypt_all) (buffer_t *, cipher_t *, size_t);
-    int(*const decrypt_all) (buffer_t *, cipher_t *, size_t);
-    int(*const encrypt) (buffer_t *, cipher_ctx_t *, size_t);
-    int(*const decrypt) (buffer_t *, cipher_ctx_t *, size_t);
+    int (*const encrypt_all)(buffer_t *, cipher_t *, size_t);
 
-    void(*const ctx_init) (cipher_t *, cipher_ctx_t *, int);
-    void(*const ctx_release) (cipher_ctx_t *);
+    int (*const decrypt_all)(buffer_t *, cipher_t *, size_t);
+
+    int (*const encrypt)(buffer_t *, cipher_ctx_t *, size_t);
+
+    int (*const decrypt)(buffer_t *, cipher_ctx_t *, size_t);
+
+    void (*const ctx_init)(cipher_t *, cipher_ctx_t *, int);
+
+    void (*const ctx_release)(cipher_ctx_t *);
 } crypto_t;
 
 int balloc(buffer_t *, size_t);
+
 int brealloc(buffer_t *, size_t, size_t);
+
 int bprepend(buffer_t *, buffer_t *, size_t);
+
 void bfree(buffer_t *);
+
 int rand_bytes(void *, int);
 
 crypto_t *crypto_init(const char *, const char *, const char *);
+
 unsigned char *crypto_md5(const unsigned char *, size_t, unsigned char *);
 
 int crypto_derive_key(const char *, uint8_t *, size_t);
+
 int crypto_parse_key(const char *, uint8_t *, size_t);
+
 int crypto_hkdf(const mbedtls_md_info_t *md, const unsigned char *salt,
                 int salt_len, const unsigned char *ikm, int ikm_len,
                 const unsigned char *info, int info_len, unsigned char *okm,
                 int okm_len);
+
 int crypto_hkdf_extract(const mbedtls_md_info_t *md, const unsigned char *salt,
                         int salt_len, const unsigned char *ikm, int ikm_len,
                         unsigned char *prk);
+
 int crypto_hkdf_expand(const mbedtls_md_info_t *md, const unsigned char *prk,
                        int prk_len, const unsigned char *info, int info_len,
                        unsigned char *okm, int okm_len);
+
 #ifdef SS_DEBUG
 void dump(char *tag, char *text, int len);
 #endif

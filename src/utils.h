@@ -231,6 +231,9 @@ void *ss_malloc(size_t size);
 void *ss_aligned_malloc(size_t size);
 void *ss_realloc(void *ptr, size_t new_size);
 
+/**
+ * 释放内存
+ */
 #define ss_free(ptr) \
     { \
         free(ptr); \

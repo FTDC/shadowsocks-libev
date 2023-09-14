@@ -322,6 +322,7 @@ get_local_port()
         close(sock);
         return 0;
     }
+
     if (close(sock) < 0) {
         return 0;
     }
