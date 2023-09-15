@@ -94,6 +94,11 @@ typedef mbedtls_md_info_t digest_type_t;
 #define BF_ERROR_RATE_FOR_CLIENT 1e-15
 #endif
 
+// 缓冲区内容
+//    size_t idx;         // 缓冲区指针的定位
+//    size_t len;         // 内容长度
+//    size_t capacity;    // buf容量
+//    char *data;         // 数据内容
 typedef struct buffer {
     size_t idx;         // 缓冲区指针的定位
     size_t len;         // 内容长度

@@ -236,6 +236,8 @@ FATAL(const char *msg) {
     exit(-1);
 }
 
+// 堆区分配一块指定大小的内存空间，用来存储数据
+// 这块内存空间再函数执行完成后不会被初始化，他们的值是未知的
 void *
 ss_malloc(size_t size) {
     void *tmp = malloc(size);
@@ -264,6 +266,12 @@ ss_aligned_malloc(size_t size) {
     }
 }
 
+/**
+ * 该函数重新分配内存，把内存扩展到 newsize。
+ * @param ptr  // 指针内存地址
+ * @param new_size // 新的内存大小
+ * @return
+ */
 void *
 ss_realloc(void *ptr, size_t new_size) {
     void *new = realloc(ptr, new_size);

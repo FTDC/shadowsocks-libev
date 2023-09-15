@@ -36,7 +36,7 @@ int init_udprelay(const char *server_host, const char *server_port,
 #ifdef MODULE_LOCAL
                   const struct sockaddr *remote_addr, const int remote_addr_len,
 #ifdef MODULE_TUNNEL
-                  const ss_addr_t tunnel_addr,
+        const ss_addr_t tunnel_addr,
 #endif
 #endif
                   int mtu, crypto_t *crypto, int timeout, const char *iface);
@@ -48,12 +48,12 @@ int protect_socket(int fd);
 int send_traffic_stat(uint64_t tx, uint64_t rx);
 #endif
 
-#define STAGE_ERROR     -1  /* Error detected                   */
-#define STAGE_INIT       0  /* Initial stage                    */
-#define STAGE_HANDSHAKE  1  /* Handshake with client            */
-#define STAGE_RESOLVE    4  /* Resolve the hostname             */
-#define STAGE_STREAM     5  /* Stream between client and server */
-#define STAGE_STOP       6  /* Server stop to response          */
+#define STAGE_ERROR     -1  /* 检测到错误    Error detected                   */
+#define STAGE_INIT       0  /* 初始阶段     Initial stage                    */
+#define STAGE_HANDSHAKE  1  /* 与客户端握手  Handshake with client            */
+#define STAGE_RESOLVE    4  /* 解析主机名    Resolve the hostname             */
+#define STAGE_STREAM     5  /* 客户端和服务器之间的流  Stream between client and server */
+#define STAGE_STOP       6  /* 服务器停止响应 Server stop to response          */
 
 /* Vals for long options */
 enum {

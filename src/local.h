@@ -60,7 +60,7 @@ typedef struct server_ctx {
 
 typedef struct server {
     int fd;  // 连接符
-    int stage; //
+    int stage; // 运行阶段
 
     cipher_ctx_t *e_ctx;    // 加密内容
     cipher_ctx_t *d_ctx;    // 解密内容
@@ -69,8 +69,8 @@ typedef struct server {
     struct listen_ctx *listener;    // 连接监听内容
     struct remote *remote;      // 远端服务器信息
 
-    buffer_t *buf;
-    buffer_t *abuf;
+    buffer_t *buf; // 缓冲区
+    buffer_t *abuf; // 发送缓冲区
 
     ev_timer delayed_connect_watcher;  // 延时链接观察者
 
@@ -89,7 +89,7 @@ typedef struct remote_ctx {
 // 远程链接服务器
 typedef struct remote {
     int fd;  // 连接句柄
-    int direct; // 跳转
+    int direct; // 是否转发
     int addr_len; // 地址长度
     uint32_t counter;
 #ifdef TCP_FASTOPEN_WINSOCK
@@ -97,7 +97,7 @@ typedef struct remote {
     int connect_ex_done;
 #endif
 
-    buffer_t *buf;  // 数据报文
+    buffer_t *buf;  // 数据报文【加密报文】
 
     struct remote_ctx *recv_ctx; // 远程服务器接收内容
     struct remote_ctx *send_ctx; // 远程服务器发送内容

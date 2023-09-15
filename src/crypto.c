@@ -45,6 +45,12 @@
 #include "utils.h"
 #include "ppbloom.h"
 
+/**
+ * 申请内存
+ * @param ptr 内存地址变量
+ * @param capacity 申请内存大小
+ * @return 内存大小
+ */
 int
 balloc(buffer_t *ptr, size_t capacity) {
     sodium_memzero(ptr, sizeof(buffer_t));
@@ -53,6 +59,13 @@ balloc(buffer_t *ptr, size_t capacity) {
     return capacity;
 }
 
+/**
+ * 重新分配内存
+ * @param ptr 地址
+ * @param len 内容长度
+ * @param capacity 容量
+ * @return
+ */
 int
 brealloc(buffer_t *ptr, size_t len, size_t capacity) {
     if (ptr == NULL)
@@ -82,6 +95,13 @@ bfree(buffer_t *ptr) {
     }
 }
 
+/**
+ * 内容地址
+ * @param dst 新的数据
+ * @param src 原始数据
+ * @param capacity
+ * @return
+ */
 int
 bprepend(buffer_t *dst, buffer_t *src, size_t capacity) {
     brealloc(dst, dst->len + src->len, capacity);

@@ -105,7 +105,7 @@ static crypto_t *crypto;
 static int acl = 0;
 static int mode = TCP_ONLY;
 static int ipv6first = 0;
-int fast_open = 0;
+int fast_open = 0; // tcp 快速连接 cookie 验证消息
 static int no_delay = 0;
 static int udp_fd = 0;
 static int ret_val = 0;
@@ -313,6 +313,14 @@ delayed_connect_cb(EV_P_ ev_timer *watcher, int revents) {
     server_recv_cb(EV_A_ &server->recv_ctx->io, revents);
 }
 
+/**
+ * UDP connection  请求处理
+ * @param loop 客户端连接
+ * @param w 客户端连接IO观察者
+ * @param udp_assc UDP 1 是
+ * @param response @socks5_response socket 认证返回结果
+ * @return
+ */
 static int
 server_handshake_reply(EV_P_ ev_io *w, int udp_assc, struct socks5_response *response) {
     server_ctx_t *server_recv_ctx = (server_ctx_t *) w;
@@ -324,8 +332,10 @@ server_handshake_reply(EV_P_ ev_io *w, int udp_assc, struct socks5_response *res
     struct sockaddr_in sock_addr;
     if (udp_assc) {
         socklen_t addr_len = sizeof(sock_addr);
+        // getsockname函数用于获取与某个套接字关联的本地协议地址
         if (getsockname(server->fd, (struct sockaddr *) &sock_addr, &addr_len) < 0) {
             LOGE("getsockname: %s", strerror(errno));
+            // 连接目标被拒绝
             response->rep = SOCKS5_REP_CONN_REFUSED;
             send(server->fd, (char *) response, sizeof(struct socks5_response), 0);
             close_and_free_remote(EV_A_ remote);
@@ -339,20 +349,25 @@ server_handshake_reply(EV_P_ ev_io *w, int udp_assc, struct socks5_response *res
     buffer_t *resp_buf = &resp_to_send;
     balloc(resp_buf, SOCKET_BUF_SIZE);
 
+    // 保存返回结果
     memcpy(resp_buf->data, response, sizeof(struct socks5_response));
+    // 指针移动， 保存代理服务器地址
     memcpy(resp_buf->data + sizeof(struct socks5_response),
            &sock_addr.sin_addr, sizeof(sock_addr.sin_addr));
+    // 指针移动， 保存代理服务器端口
     memcpy(resp_buf->data + sizeof(struct socks5_response) +
            sizeof(sock_addr.sin_addr),
            &sock_addr.sin_port, sizeof(sock_addr.sin_port));
 
+    // 返回内容
     int reply_size = sizeof(struct socks5_response) +
                      sizeof(sock_addr.sin_addr) + sizeof(sock_addr.sin_port);
-
+    // 发送字段大小
     int s = send(server->fd, resp_buf->data, reply_size, 0);
 
     bfree(resp_buf);
 
+    // 判断如果发送字段小于回复字段大小，则失败
     if (s < reply_size) {
         LOGE("failed to send fake reply");
         close_and_free_remote(EV_A_ remote);
@@ -366,13 +381,24 @@ server_handshake_reply(EV_P_ ev_io *w, int udp_assc, struct socks5_response *res
     return 0;
 }
 
+/**
+ * 和客户端握手
+ * @param loop 客户端连接循环
+ * @param w 客户端IO观察者
+ * @param buf 接收内容
+ * @return
+ */
 static int
 server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
     server_ctx_t *server_recv_ctx = (server_ctx_t *) w;
+    // 代理服务器
     server_t *server = server_recv_ctx->server;
+    // 远程服务器
     remote_t *remote = server->remote;
 
+    // 代理服务器接收的内容
     struct socks5_request *request = (struct socks5_request *) buf->data;
+    // socket5 请求大小
     size_t request_len = sizeof(struct socks5_request);
 
     if (buf->len < request_len) {
@@ -385,13 +411,16 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
     response.rsv = 0;
     response.atyp = SOCKS5_ATYP_IPV4;
 
+    // 判断是否是UDP协议
     if (request->cmd == SOCKS5_CMD_UDP_ASSOCIATE) {
         if (verbose) {
             LOGI("udp assc request accepted");
         }
         return server_handshake_reply(EV_A_ w, 1, &response);
     } else if (request->cmd != SOCKS5_CMD_CONNECT) {
+        // 判断如果不是socket 请求，则停止服务退出
         LOGE("unsupported command: %d", request->cmd);
+        //  SOCKS5_REP_CMD_NOT_SUPPORTED 不支持的命令
         response.rep = SOCKS5_REP_CMD_NOT_SUPPORTED;
         char *send_buf = (char *) &response;
         send(server->fd, send_buf, 4, 0);
@@ -402,24 +431,32 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
 
     char host[MAX_HOSTNAME_LEN + 1], ip[INET6_ADDRSTRLEN], port[16];
 
+    // 代理服务器接收到的内容
     buffer_t *abuf = server->abuf;
     abuf->idx = 0;
     abuf->len = 0;
 
+    // 地址类型 1 个字节
     abuf->data[abuf->len++] = request->atyp;
     int atyp = request->atyp;
 
     // get remote addr and port
     if (atyp == SOCKS5_ATYP_IPV4) {
+        // 地址类型 : IP4
         size_t in_addr_len = sizeof(struct in_addr);
+        // 长度构成：请求体大小+目标地址+端口
         if (buf->len < request_len + in_addr_len + 2) {
             return -1;
         }
+        // 拷贝 接收的内容到发送缓冲区abuf
         memcpy(abuf->data + abuf->len, buf->data + request_len, in_addr_len + 2);
         abuf->len += in_addr_len + 2;
 
         if (acl || verbose) {
+            // xxxx 可能转16进制
             uint16_t p = load16_be(buf->data + request_len + in_addr_len);
+            // 将IP地址在“点分十进制”和“二进制整数”之间转换。
+            // 获得 ip
             if (!inet_ntop(AF_INET, (const void *) (buf->data + request_len),
                            ip, INET_ADDRSTRLEN)) {
                 LOGI("inet_ntop(AF_INET): %s", strerror(errno));
@@ -428,21 +465,25 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
             sprintf(port, "%d", p);
         }
     } else if (atyp == SOCKS5_ATYP_DOMAIN) {
+        // 地址类型 : domain
         uint8_t name_len = *(uint8_t *) (buf->data + request_len);
         if (buf->len < request_len + 1 + name_len + 2) {
             return -1;
         }
         abuf->data[abuf->len++] = name_len;
+        // 拷贝请求域名
         memcpy(abuf->data + abuf->len, buf->data + request_len + 1, name_len + 2);
         abuf->len += name_len + 2;
 
         if (acl || verbose) {
             uint16_t p = load16_be(buf->data + request_len + 1 + name_len);
+            // 获取域名
             memcpy(host, buf->data + request_len + 1, name_len);
             host[name_len] = '\0';
             sprintf(port, "%d", p);
         }
     } else if (atyp == SOCKS5_ATYP_IPV6) {
+        // 地址类型 : IPv6
         size_t in6_addr_len = sizeof(struct in6_addr);
         if (buf->len < request_len + in6_addr_len + 2) {
             return -1;
@@ -460,7 +501,9 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
             sprintf(port, "%d", p);
         }
     } else {
+        // 不支持的网络地址类型
         LOGE("unsupported addrtype: %d", request->atyp);
+        // SOCKS5_REP_ADDRTYPE_NOT_SUPPORTED  不支持的目标服务器地址类型
         response.rep = SOCKS5_REP_ADDRTYPE_NOT_SUPPORTED;
         char *send_buf = (char *) &response;
         send(server->fd, send_buf, 4, 0);
@@ -471,6 +514,8 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
 
     if (server_handshake_reply(EV_A_ w, 0, &response) < 0)
         return -1;
+
+    // 修改代理服务器阶段， 客户端和服务器数据报文
     server->stage = STAGE_STREAM;
 
     buf->len -= (3 + abuf->len);
@@ -500,6 +545,7 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
 
         int host_match = 0;
         if (atyp == SOCKS5_ATYP_DOMAIN)
+            // 匹配访问的域名是否在acl 文件中
             host_match = acl_match_host(host);
 
         if (host_match > 0)
@@ -507,11 +553,15 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
         else if (host_match < 0)
             bypass = 0;                             // proxy hostnames in white list
         else {
+
+            // 如果为域名
             if (atyp == SOCKS5_ATYP_DOMAIN
 #ifdef __ANDROID__
                 && !vpn
 #endif
-                    ) {           // resolve domain so we can bypass domain with geoip
+                    ) {
+                // resolve domain so we can bypass domain with geoip
+                // 转换 域名为 IP 地址
                 if (get_sockaddr(host, port, &storage, 0, ipv6first))
                     goto not_bypass;
                 resolved = 1;
@@ -533,9 +583,11 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
                 }
             }
 
+            // IP 匹配模式
             int ip_match = (resolved || atyp == SOCKS5_ATYP_IPV4
                             || atyp == SOCKS5_ATYP_IPV6) ? acl_match_host(ip) : 0;
 
+            // 默认是黑名单
             switch (get_acl_mode()) {
                 case BLACK_LIST:
                     if (ip_match > 0)
@@ -549,6 +601,7 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
             }
         }
 
+        // 通过则机械， 连接远程服务端
         if (bypass) {
             if (verbose) {
                 if (atyp == SOCKS5_ATYP_DOMAIN)
@@ -567,7 +620,10 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
                 err = get_sockaddr(host, port, &storage, 0, ipv6first);
             else
                 err = get_sockaddr(ip, port, &storage, 0, ipv6first);
+
+            // 获取远程服务器的IP和端口
             if (err != -1) {
+                // 创建远程链接， 转发代理服务器请求
                 remote = create_remote(server->listener, (struct sockaddr *) &storage, 1);
             }
         }
@@ -612,6 +668,12 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
     return -1;
 }
 
+/**
+ * 服务器端上下文内容
+ * @param loop 循环对象
+ * @param w 观察器
+ * @param buf server recv 缓冲区内容
+ */
 static void
 server_stream(EV_P_ ev_io *w, buffer_t *buf) {
     server_ctx_t *server_recv_ctx = (server_ctx_t *) w;
@@ -625,6 +687,7 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf) {
     }
 
     // insert shadowsocks header
+    // 判断是远程服务器转发
     if (!remote->direct) {
 #ifdef __ANDROID__
         tx += remote->buf->len;
@@ -639,6 +702,7 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf) {
         }
 
         if (server->abuf) {
+            // 合并内容
             bprepend(remote->buf, server->abuf, SOCKET_BUF_SIZE);
             bfree(server->abuf);
             ss_free(server->abuf);
@@ -668,8 +732,10 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf) {
 
         remote->buf->idx = 0;
 
+        //  判断是否开启快速连接，并且是转发
         if (!fast_open || remote->direct) {
             // connecting, wait until connected
+            // TODO: 连接远程服务器
             int r = connect(remote->fd, (struct sockaddr *) &(remote->addr), remote->addr_len);
 
             if (r == -1 && errno != CONNECT_IN_PROGRESS) {
@@ -680,7 +746,9 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf) {
             }
 
             // wait on remote connected event
+            // 结束本机服务端接收监听
             ev_io_stop(EV_A_ &server_recv_ctx->io);
+            // 启动远程服务器文件的发送，和延时监听
             ev_io_start(EV_A_ &remote->send_ctx->io);
             ev_timer_start(EV_A_ &remote->send_ctx->watcher);
         } else {
@@ -745,18 +813,24 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf) {
                          CONNECT_RESUME_ON_READ_WRITE | CONNECT_DATA_IDEMPOTENT,
                          NULL, 0, NULL, NULL);
 #elif defined(TCP_FASTOPEN_CONNECT)
+            // 开启TCP 快速连接 ， 再握手的时候存储cookies , 下次链接直接携带存储的cookies+data，
+            // 通过 cookie 是否有效直接接收数据，否则返回新的cookie
             int optval = 1;
             if (setsockopt(remote->fd, IPPROTO_TCP, TCP_FASTOPEN_CONNECT,
                            (void *) &optval, sizeof(optval)) < 0)
                 FATAL("failed to set TCP_FASTOPEN_CONNECT");
+
+            // todo: 连接远端服务器
             s = connect(remote->fd, (struct sockaddr *) &(remote->addr), remote->addr_len);
 #else
             FATAL("fast open is not enabled in this build");
 #endif
+            // TODO: 连接成功发送内容 s 为发送的字节数
             if (s == 0)
                 s = send(remote->fd, remote->buf->data, remote->buf->len, 0);
 #endif
             if (s == -1) {
+                // 连接中状态
                 if (errno == CONNECT_IN_PROGRESS) {
                     // in progress, wait until connected
                     remote->buf->idx = 0;
@@ -764,6 +838,11 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf) {
                     ev_io_start(EV_A_ &remote->send_ctx->io);
                     return;
                 } else {
+                    /**
+                     * EOPNOTSUPP  套接字类型不是 socket_stream
+                     * EPROTONOSUPPORT  协议不支持
+                     * ENOPROTOOPT  协议不可用
+                     */
                     if (errno == EOPNOTSUPP || errno == EPROTONOSUPPORT ||
                         errno == ENOPROTOOPT) {
                         LOGE("fast open is not supported on this platform");
@@ -777,10 +856,13 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf) {
                     return;
                 }
             } else {
+                // 远程服务器的长度减去发送的长度 ，指针后移动 S 位
                 remote->buf->len -= s;
                 remote->buf->idx = s;
 
+                // 停止本机服务端接收的监听 ，
                 ev_io_stop(EV_A_ &server_recv_ctx->io);
+                // 开始监听连接远程服务器发送行为和 返回的时间观察
                 ev_io_start(EV_A_ &remote->send_ctx->io);
                 ev_timer_start(EV_A_ &remote->send_ctx->watcher);
                 return;
@@ -828,7 +910,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents) {
     server_t *server = server_recv_ctx->server;
     // 连接请求的远程服务端
     remote_t *remote = server->remote;
-    buffer_t *buf;
+    buffer_t *buf; // buffer 接收内容
     ssize_t r;  // 接收的字符串长度
 
     //todo:: why 停止延迟连接观察
@@ -854,11 +936,13 @@ server_recv_cb(EV_P_ ev_io *w, int revents) {
             close_and_free_server(EV_A_ server);
             return;
         } else if (r == -1) {
+            // 程序没有数据可读，稍后重试
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 // no data
                 // continue to wait for recv
                 return;
             } else {
+                // 释放资源
                 if (verbose)
                     ERROR("server_recv_cb_recv");
                 close_and_free_remote(EV_A_ remote);
@@ -866,6 +950,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents) {
                 return;
             }
         }
+        // 内容长度
         buf->len += r;
     }
 
@@ -877,37 +962,57 @@ server_recv_cb(EV_P_ ev_io *w, int revents) {
             // all processed
             return;
         } else if (server->stage == STAGE_INIT) {
+            // 初始化阶段
             if (verbose) {
                 struct sockaddr_in peer_addr;
                 socklen_t peer_addr_len = sizeof peer_addr;
+                // getpeername函数用于获取与某个套接字关联的外地协议地址
+                // getsockname函数用于获取与某个套接字关联的本地协议地址
                 if (getpeername(server->fd, (struct sockaddr *) &peer_addr, &peer_addr_len) == 0) {
                     LOGI("connection from %s:%hu", inet_ntoa(peer_addr.sin_addr), ntohs(peer_addr.sin_port));
                 }
             }
             if (buf->len < 1)
                 return;
+            // VERSION SOCKS协议版本，目前固定0x05
             if (buf->data[0] != SVERSION) {
                 close_and_free_remote(EV_A_ remote);
                 close_and_free_server(EV_A_ server);
                 return;
             }
+            // +----+----------+----------+
+            // |VER | NMETHODS | METHODS  |
+            // +----+----------+----------+
+            // | 1  |    1     | 1 to 255 |
+            // +----+----------+----------+
+            // VER: 协议版本，socks5为0x05
+            // NMETHODS: 支持认证的方法数量
+            // METHODS: 对应NMETHODS，NMETHODS的值为多少，METHODS就有多少个字节。RFC预定义了一些值的含义，内容如下:
+            // X’00’ NO AUTHENTICATION REQUIRED
+            // X’02’ USERNAME/PASSWOR
+
+            // todo 不懂，
             if (buf->len < sizeof(struct method_select_request)) {
                 return;
             }
             struct method_select_request *method = (struct method_select_request *) buf->data;
+            // 方法长度 = 支持的方法数+结构体大小
             int method_len = method->nmethods + sizeof(struct method_select_request);
             if (buf->len < method_len) {
                 return;
             }
 
+            // 认证返回结果
             struct method_select_response response;
-            response.ver = SVERSION;
-            response.method = METHOD_UNACCEPTABLE;
+            response.ver = SVERSION; // 0x05 socket 固定协议版本
+            response.method = METHOD_UNACCEPTABLE;  // 无支持的认证方法
             for (int i = 0; i < method->nmethods; i++)
+                // 无需认证
                 if (method->methods[i] == METHOD_NOAUTH) {
                     response.method = METHOD_NOAUTH;
                     break;
                 }
+            // TODO 返回客户端认证方式：无需认证
             char *send_buf = (char *) &response;
             send(server->fd, send_buf, sizeof(response), 0);
             if (response.method == METHOD_UNACCEPTABLE) {
@@ -916,9 +1021,11 @@ server_recv_cb(EV_P_ ev_io *w, int revents) {
                 return;
             }
 
+            // 修改服务阶段为：和客户端握手
             server->stage = STAGE_HANDSHAKE;
 
             if (method_len < (int) (buf->len)) {
+                // 覆盖复制， 设置内容为内容    缓冲区 ， 缓冲区+支持的方法长度， 缓冲区内容长度-方法长度
                 memmove(buf->data, buf->data + method_len, buf->len - method_len);
                 buf->len -= method_len;
                 continue;
@@ -927,6 +1034,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents) {
             buf->len = 0;
             return;
         } else if (server->stage == STAGE_HANDSHAKE) {
+            // 和客户度握手
             int ret = server_handshake(EV_A_ w, buf);
             if (ret)
                 return;
@@ -1318,6 +1426,13 @@ close_and_free_server(EV_P_ server_t *server) {
     }
 }
 
+/**
+ * 创建远程代理服务器本地服务端
+ * @param listener 客户端连接
+ * @param addr 目标地址
+ * @param direct 是否转发 1
+ * @return
+ */
 static remote_t *
 create_remote(listen_ctx_t *listener,
               struct sockaddr *addr,
