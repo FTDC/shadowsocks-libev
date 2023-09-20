@@ -60,6 +60,11 @@ set_reuseport(int socket)
     return setsockopt(socket, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
 }
 
+/**
+ * 获取 sockaddr_in 大小
+ * @param addr socket address
+ * @return
+ */
 size_t
 get_sockaddr_len(struct sockaddr *addr)
 {

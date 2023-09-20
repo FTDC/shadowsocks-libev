@@ -43,9 +43,9 @@
 #include "common.h"
 
 typedef struct listen_ctx {
-    ev_io io;
-    char *iface;
-    int remote_num;
+    ev_io io;  // 连接文件监控
+    char *iface;  // 绑定网卡
+    int remote_num; // 远程连接数
     int timeout;  // 超时设置
     int fd;     // 连接标识符
     int mptcp;  // mptcp 是否开启

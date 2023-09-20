@@ -641,6 +641,7 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
         return -1;
     }
 
+    // 如果不是转发服务器，则加密服务端内容
     if (!remote->direct) {
         int err = crypto->encrypt(abuf, server->e_ctx, SOCKET_BUF_SIZE);
         if (err) {
@@ -656,6 +657,7 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
         remote->buf->len = buf->len;
     }
 
+    // 设置代理服务器的远程服务器 remote 。 远程服务器的server为当前服务
     server->remote = remote;
     remote->server = server;
 
@@ -1092,6 +1094,12 @@ stat_update_cb()
 
 #endif
 
+/**
+ * 超时时间监听
+ * @param loop 循环期
+ * @param watcher 超时监控
+ * @param revents  超时事件
+ */
 static void
 remote_timeout_cb(EV_P_ ev_timer *watcher, int revents) {
     remote_ctx_t *remote_ctx
@@ -1108,12 +1116,19 @@ remote_timeout_cb(EV_P_ ev_timer *watcher, int revents) {
     close_and_free_server(EV_A_ server);
 }
 
+/**
+ * 监听远程连接接收到的内容
+ * @param loop 循环监视
+ * @param w  读文件观察者
+ * @param revents
+ */
 static void
 remote_recv_cb(EV_P_ ev_io *w, int revents) {
     remote_ctx_t *remote_recv_ctx = (remote_ctx_t *) w;
     remote_t *remote = remote_recv_ctx->remote;
     server_t *server = remote->server;
 
+    // 接收远程连接返回内容的大小
     ssize_t r = recv(remote->fd, server->buf->data, SOCKET_BUF_SIZE, 0);
 
     if (r == 0) {
@@ -1141,6 +1156,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents) {
         rx += server->buf->len;
         stat_update_cb();
 #endif
+        // 如果不是转发机器，机密内容， 机密错误则停止释放资源
         int err = crypto->decrypt(server->buf, server->d_ctx, SOCKET_BUF_SIZE);
         if (err == CRYPTO_ERROR) {
             LOGE("invalid password or cipher");
@@ -1152,9 +1168,13 @@ remote_recv_cb(EV_P_ ev_io *w, int revents) {
         }
     }
 
+    // 发送客户端连接内容和发送内容的长度
     int s = send(server->fd, server->buf->data, server->buf->len, 0);
 
     if (s == -1) {
+        // 当应用程序在socket中设置O_NONBLOCK属性后，如果发送缓存被占满，send就会返回EAGAIN或EWOULDBLOCK 的错误。
+        // 在将socket设置O_NONBLOCK属性后，通过socket发送一个100K大小的数据，第一次成功发送了13140数据，之后继续发送并未成功，
+        // errno数值为EAGAIN错误。
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             // no data, wait for send
             server->buf->idx = 0;
@@ -1167,6 +1187,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents) {
             return;
         }
     } else if (s < (int) (server->buf->len)) {
+        // 设置代理服务器的缓冲区并停止观察
         server->buf->len -= s;
         server->buf->idx = s;
         ev_io_stop(EV_A_ &remote_recv_ctx->io);
@@ -1174,6 +1195,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents) {
     }
 
     // Disable TCP_NODELAY after the first response are sent
+    // 设置代理服务器之间的网络，关闭
     if (!remote->recv_ctx->connected && !no_delay) {
         int opt = 0;
         setsockopt(server->fd, SOL_TCP, TCP_NODELAY, &opt, sizeof(opt));
@@ -1182,6 +1204,12 @@ remote_recv_cb(EV_P_ ev_io *w, int revents) {
     remote->recv_ctx->connected = 1;
 }
 
+/**
+ * 远程代理服务器发送内容
+ * @param loop 循环器
+ * @param w  写文件观察期
+ * @param revents 远程发送
+ */
 static void
 remote_send_cb(EV_P_ ev_io *w, int revents) {
     remote_ctx_t *remote_send_ctx = (remote_ctx_t *) w;
@@ -1222,6 +1250,7 @@ remote_send_cb(EV_P_ ev_io *w, int revents) {
 #endif
         struct sockaddr_storage addr;
         socklen_t len = sizeof addr;
+        // getpeername函数用于获取与某个套接字关联的外地协议地址
         int r = getpeername(remote->fd, (struct sockaddr *) &addr, &len);
         if (r == 0) {
             remote_send_ctx->connected = 1;
@@ -1275,6 +1304,12 @@ remote_send_cb(EV_P_ ev_io *w, int revents) {
     }
 }
 
+/**
+ * 创建远程连接代理服务器
+ * @param fd  连接标识符
+ * @param timeout  超时设置
+ * @return
+ */
 static remote_t *
 new_remote(int fd, int timeout) {
     remote_t *remote;
@@ -1294,8 +1329,11 @@ new_remote(int fd, int timeout) {
     remote->recv_ctx->remote = remote;
     remote->send_ctx->remote = remote;
 
+    // todo:: 监听远程服务的接收
     ev_io_init(&remote->recv_ctx->io, remote_recv_cb, fd, EV_READ);
+    // todo:: 监听远程发送的内容
     ev_io_init(&remote->send_ctx->io, remote_send_cb, fd, EV_WRITE);
+    // todo:: 监听远程连接超时事件
     ev_timer_init(&remote->send_ctx->watcher, remote_timeout_cb,
                   min(MAX_CONNECT_TIMEOUT, timeout), 0);
 
@@ -1456,6 +1494,7 @@ create_remote(listen_ctx_t *listener,
         return NULL;
     }
 
+    // TCP_NODELAY，该选项会禁用Nagle算法。 小包比较多多网络有负担， 延时小， 开启Nagle算法减少TCP段的传输数量
     int opt = 1;
     setsockopt(remotefd, SOL_TCP, TCP_NODELAY, &opt, sizeof(opt));
 #ifdef SO_NOSIGPIPE
@@ -1482,6 +1521,7 @@ create_remote(listen_ctx_t *listener,
         }
     }
 
+    // 设置TCP 出去的TCP 的缓冲区大大小，发送段 ， 接收端
     if (tcp_outgoing_sndbuf > 0) {
         setsockopt(remotefd, SOL_SOCKET, SO_SNDBUF, &tcp_outgoing_sndbuf, sizeof(int));
     }
@@ -1492,13 +1532,14 @@ create_remote(listen_ctx_t *listener,
 
     // Setup
     setnonblocking(remotefd);
+    // 绑定网卡
 #ifdef SET_INTERFACE
     if (listener->iface) {
         if (setinterface(remotefd, listener->iface) == -1)
             ERROR("setinterface");
     }
 #endif
-
+    // 创建远程连接服务器
     remote_t *remote = new_remote(remotefd, direct ? MAX_CONNECT_TIMEOUT : listener->timeout);
     remote->addr_len = get_sockaddr_len(remote_addr);
     memcpy(&(remote->addr), remote_addr, remote->addr_len);
@@ -1617,24 +1658,24 @@ int
 main(int argc, char **argv) {
     int i, c;
     int pid_flags = 0;
-    int mtu = 0;
-    int mptcp = 0;
-    char *user = NULL;
-    char *local_port = NULL;
-    char *local_addr = NULL;
-    char *password = NULL;
-    char *key = NULL;
-    char *timeout = NULL;
-    char *method = NULL;
-    char *pid_path = NULL;
-    char *conf_path = NULL;
-    char *iface = NULL;
+    int mtu = 0;  // 最大传输单元
+    int mptcp = 0;  //  Enable Multipath TCP on MPTCP Kernel.
+    char *user = NULL; // 用户
+    char *local_port = NULL;  // local port
+    char *local_addr = NULL; // local address
+    char *password = NULL;  // 密码
+    char *key = NULL;   // key
+    char *timeout = NULL; // 超时
+    char *method = NULL; // 加密方法
+    char *pid_path = NULL; //  The file path to store pid.
+    char *conf_path = NULL; // 配置文件路径
+    char *iface = NULL; // 指定网卡
 
-    char *plugin = NULL;
-    char *plugin_opts = NULL;
-    char *plugin_host = NULL;
-    char *plugin_port = NULL;
-    char tmp_port[8];
+    char *plugin = NULL; // 插件
+    char *plugin_opts = NULL; // 插件配置
+    char *plugin_host = NULL; // 插件主机地址
+    char *plugin_port = NULL; // 插件端口
+    char tmp_port[8]; // 临时端口
 
     int remote_num = 0;
     ss_addr_t remote_addr[MAX_REMOTE_NUM];
@@ -1664,6 +1705,7 @@ main(int argc, char **argv) {
 
     opterr = 0;
 
+    // 判断是否是设备
     USE_TTY();
 
 #ifdef __ANDROID__
