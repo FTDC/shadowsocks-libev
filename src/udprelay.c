@@ -510,8 +510,8 @@ create_server_socket(const char *host, const char *port)
         }
 #ifdef IP_TOS
         // Set QoS flag
-        int tos   = 46 << 2;
-        int rc = setsockopt(server_sock, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+        int tos = 46 << 2;
+        int rc  = setsockopt(server_sock, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
         if (rc < 0 && errno != ENOPROTOOPT) {
             LOGE("setting ipv4 dscp failed: %d", errno);
         }
@@ -685,8 +685,8 @@ resolv_cb(struct sockaddr *addr, void *data)
 #endif
 #ifdef IP_TOS
                 // Set QoS flag
-                int tos   = 46 << 2;
-                int rc = setsockopt(remotefd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+                int tos = 46 << 2;
+                int rc  = setsockopt(remotefd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
                 if (rc < 0 && errno != ENOPROTOOPT) {
                     LOGE("setting ipv4 dscp failed: %d", errno);
                 }
@@ -743,17 +743,19 @@ resolv_cb(struct sockaddr *addr, void *data)
 
 #endif
 
-void convert_ipv4_mapped_ipv6(struct sockaddr_storage* addr) {
+void
+convert_ipv4_mapped_ipv6(struct sockaddr_storage *addr)
+{
     if (addr->ss_family == AF_INET) {
-        struct sockaddr_in* ipv4_addr = (struct sockaddr_in*)addr;
+        struct sockaddr_in *ipv4_addr = (struct sockaddr_in *)addr;
 
         struct sockaddr_storage mapped_addr;
         memset(&mapped_addr, 0, sizeof(mapped_addr));
 
-        struct sockaddr_in6* mapped_ipv6_addr = (struct sockaddr_in6*)&mapped_addr;
+        struct sockaddr_in6 *mapped_ipv6_addr = (struct sockaddr_in6 *)&mapped_addr;
         mapped_ipv6_addr->sin6_family = AF_INET6;
-        mapped_ipv6_addr->sin6_port = ipv4_addr->sin_port;
-        uint8_t* ipv6_raw_addr = mapped_ipv6_addr->sin6_addr.s6_addr;
+        mapped_ipv6_addr->sin6_port   = ipv4_addr->sin_port;
+        uint8_t *ipv6_raw_addr = mapped_ipv6_addr->sin6_addr.s6_addr;
         ipv6_raw_addr[10] = 0xff;
         ipv6_raw_addr[11] = 0xff;
         in_addr_t ipv4_raw_addr = ntohl(ipv4_addr->sin_addr.s_addr);
@@ -811,7 +813,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
     int err = server_ctx->crypto->decrypt_all(buf, server_ctx->crypto->cipher, buf_size);
     if (err) {
         LOGE("failed to handshake with %s: %s",
-                get_addr_str((struct sockaddr *)&src_addr, false), "suspicious UDP packet");
+             get_addr_str((struct sockaddr *)&src_addr, false), "suspicious UDP packet");
         // drop the packet silently
         goto CLEAN_UP;
     }
@@ -881,7 +883,6 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
         }
     }
 
-
 #ifdef MODULE_REDIR
     convert_ipv4_mapped_ipv6(&dst_addr);
 
@@ -911,7 +912,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
 #ifdef IP_TOS
     // Set QoS flag
     int tos = 46 << 2;
-    int rc = setsockopt(src_fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+    int rc  = setsockopt(src_fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
     if (rc < 0 && errno != ENOPROTOOPT) {
         LOGE("setting ipv4 dscp failed: %d", errno);
     }
@@ -1042,7 +1043,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
     int err = server_ctx->crypto->decrypt_all(buf, server_ctx->crypto->cipher, buf_size);
     if (err) {
         LOGE("failed to handshake with %s: %s",
-                get_addr_str((struct sockaddr *)&src_addr, false), "suspicious UDP packet");
+             get_addr_str((struct sockaddr *)&src_addr, false), "suspicious UDP packet");
         // drop the packet silently
         goto CLEAN_UP;
     }
@@ -1261,7 +1262,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 #ifdef IP_TOS
         // Set QoS flag
         int tos = 46 << 2;
-        int rc = setsockopt(remotefd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+        int rc  = setsockopt(remotefd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
         if (rc < 0 && errno != ENOPROTOOPT) {
             LOGE("setting ipv4 dscp failed: %d", errno);
         }
@@ -1358,8 +1359,8 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 #endif
 #ifdef IP_TOS
                 // Set QoS flag
-                int tos   = 46 << 2;
-                int rc = setsockopt(remotefd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+                int tos = 46 << 2;
+                int rc  = setsockopt(remotefd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
                 if (rc < 0 && errno != ENOPROTOOPT) {
                     LOGE("setting ipv4 dscp failed: %d", errno);
                 }
@@ -1509,7 +1510,7 @@ free_udprelay()
         close(server_ctx->fd);
         cache_delete(server_ctx->conn_cache, 0);
 #ifdef MODULE_LOCAL
-        free((char*) server_ctx->remote_addr);
+        free((char *)server_ctx->remote_addr);
 #endif
         ss_free(server_ctx);
         server_ctx_list[server_num] = NULL;

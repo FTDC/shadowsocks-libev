@@ -70,7 +70,8 @@ int use_syslog = 0;
 #ifndef __MINGW32__
 
 void
-ERROR(const char *s) {
+ERROR(const char *s)
+{
     char *msg = strerror(errno);
     LOGE("%s: %s", s, msg);
 }
@@ -80,20 +81,21 @@ ERROR(const char *s) {
 int use_tty = 1;
 
 char *
-ss_itoa(int i) {
+ss_itoa(int i)
+{
     /* Room for INT_DIGITS digits, - and '\0' */
     static char buf[INT_DIGITS + 2];
     char *p = buf + INT_DIGITS + 1;     /* points to terminating '\0' */
     if (i >= 0) {
         do {
             *--p = '0' + (i % 10);
-            i /= 10;
+            i   /= 10;
         } while (i != 0);
         return p;
     } else {                     /* i < 0 */
         do {
             *--p = '0' - (i % 10);
-            i /= 10;
+            i   /= 10;
         } while (i != 0);
         *--p = '-';
     }
@@ -101,10 +103,11 @@ ss_itoa(int i) {
 }
 
 int
-ss_isnumeric(const char *s) {
+ss_isnumeric(const char *s)
+{
     if (!s || !*s)
         return 0;
-    while (isdigit((unsigned char) *s))
+    while (isdigit((unsigned char)*s))
         ++s;
     return *s == '\0';
 }
@@ -113,7 +116,8 @@ ss_isnumeric(const char *s) {
  * setuid() and setgid() for a specified user.
  */
 int
-run_as(const char *user) {
+run_as(const char *user)
+{
 #ifndef __MINGW32__
     if (user[0]) {
         /* Convert user to a long integer if it is a non-negative number.
@@ -139,15 +143,15 @@ run_as(const char *user) {
             /* Note that we use getpwnam_r() instead of getpwnam(),
              * which returns its result in a statically allocated buffer and
              * cannot be considered thread safe. */
-            err = uid >= 0 ? getpwuid_r((uid_t) uid, &pwdbuf, buf, buflen, &pwd)
+            err = uid >= 0 ? getpwuid_r((uid_t)uid, &pwdbuf, buf, buflen, &pwd)
                            : getpwnam_r(user, &pwdbuf, buf, buflen, &pwd);
 
             if (err == 0 && pwd) {
                 /* setgid first, because we may not be allowed to do it anymore after setuid */
                 if (setgid(pwd->pw_gid) != 0) {
                     LOGE(
-                            "Could not change group id to that of run_as user '%s': %s",
-                            pwd->pw_name, strerror(errno));
+                        "Could not change group id to that of run_as user '%s': %s",
+                        pwd->pw_name, strerror(errno));
                     return 0;
                 }
 
@@ -160,8 +164,8 @@ run_as(const char *user) {
 
                 if (setuid(pwd->pw_uid) != 0) {
                     LOGE(
-                            "Could not change user id to that of run_as user '%s': %s",
-                            pwd->pw_name, strerror(errno));
+                        "Could not change user id to that of run_as user '%s': %s",
+                        pwd->pw_name, strerror(errno));
                     return 0;
                 }
                 break;
@@ -177,8 +181,8 @@ run_as(const char *user) {
                 /* If getpwnam_r() seems defective, call it quits rather than
                  * keep on allocating ever larger buffers until we crash. */
                 LOGE(
-                        "getpwnam_r() requires more than %u bytes of buffer space.",
-                        (unsigned) buflen);
+                    "getpwnam_r() requires more than %u bytes of buffer space.",
+                    (unsigned)buflen);
                 return 0;
             }
             /* Else try again with larger buffer. */
@@ -216,7 +220,8 @@ run_as(const char *user) {
 }
 
 char *
-ss_strndup(const char *s, size_t n) {
+ss_strndup(const char *s, size_t n)
+{
     size_t len = strlen(s);
     char *ret;
 
@@ -231,7 +236,8 @@ ss_strndup(const char *s, size_t n) {
 }
 
 void
-FATAL(const char *msg) {
+FATAL(const char *msg)
+{
     LOGE("%s", msg);
     exit(-1);
 }
@@ -239,7 +245,8 @@ FATAL(const char *msg) {
 // 堆区分配一块指定大小的内存空间，用来存储数据
 // 这块内存空间再函数执行完成后不会被初始化，他们的值是未知的
 void *
-ss_malloc(size_t size) {
+ss_malloc(size_t size)
+{
     void *tmp = malloc(size);
     if (tmp == NULL)
         exit(EXIT_FAILURE);
@@ -247,7 +254,8 @@ ss_malloc(size_t size) {
 }
 
 void *
-ss_aligned_malloc(size_t size) {
+ss_aligned_malloc(size_t size)
+{
     int err;
     void *tmp = NULL;
 #ifdef HAVE_POSIX_MEMALIGN
@@ -273,7 +281,8 @@ ss_aligned_malloc(size_t size) {
  * @return
  */
 void *
-ss_realloc(void *ptr, size_t new_size) {
+ss_realloc(void *ptr, size_t new_size)
+{
     void *new = realloc(ptr, new_size);
     if (new == NULL) {
         free(ptr);
@@ -284,16 +293,18 @@ ss_realloc(void *ptr, size_t new_size) {
 }
 
 int
-ss_is_ipv6addr(const char *addr) {
+ss_is_ipv6addr(const char *addr)
+{
     return strcmp(addr, ":") > 0;
 }
 
 void
-usage() {
+usage()
+{
     printf("\n");
     printf("shadowsocks-libev %s\n\n", VERSION);
     printf(
-            "  maintained by Max Lv <max.c.lv@gmail.com> and Linus Yang <laokongzi@gmail.com>\n\n");
+        "  maintained by Max Lv <max.c.lv@gmail.com> and Linus Yang <laokongzi@gmail.com>\n\n");
     printf("  usage:\n\n");
 #ifdef MODULE_LOCAL
     printf("    ss-local\n");
@@ -308,63 +319,63 @@ usage() {
 #endif
     printf("\n");
     printf(
-            "       -s <server_host>           Host name or IP address of your remote server.\n");
+        "       -s <server_host>           Host name or IP address of your remote server.\n");
     printf(
-            "       -p <server_port>           Port number of your remote server.\n");
+        "       -p <server_port>           Port number of your remote server.\n");
     printf(
-            "       -l <local_port>            Port number of your local server.\n");
+        "       -l <local_port>            Port number of your local server.\n");
     printf(
-            "       -k <password>              Password of your remote server.\n");
+        "       -k <password>              Password of your remote server.\n");
     printf(
-            "       -m <encrypt_method>        Encrypt method: rc4-md5, \n");
+        "       -m <encrypt_method>        Encrypt method: rc4-md5, \n");
     printf(
-            "                                  aes-128-gcm, aes-192-gcm, aes-256-gcm,\n");
+        "                                  aes-128-gcm, aes-192-gcm, aes-256-gcm,\n");
     printf(
-            "                                  aes-128-cfb, aes-192-cfb, aes-256-cfb,\n");
+        "                                  aes-128-cfb, aes-192-cfb, aes-256-cfb,\n");
     printf(
-            "                                  aes-128-ctr, aes-192-ctr, aes-256-ctr,\n");
+        "                                  aes-128-ctr, aes-192-ctr, aes-256-ctr,\n");
     printf(
-            "                                  camellia-128-cfb, camellia-192-cfb,\n");
+        "                                  camellia-128-cfb, camellia-192-cfb,\n");
     printf(
-            "                                  camellia-256-cfb, bf-cfb,\n");
+        "                                  camellia-256-cfb, bf-cfb,\n");
     printf(
-            "                                  chacha20-ietf-poly1305,\n");
+        "                                  chacha20-ietf-poly1305,\n");
 #ifdef FS_HAVE_XCHACHA20IETF
     printf(
-            "                                  xchacha20-ietf-poly1305,\n");
+        "                                  xchacha20-ietf-poly1305,\n");
 #endif
     printf(
-            "                                  salsa20, chacha20 and chacha20-ietf.\n");
+        "                                  salsa20, chacha20 and chacha20-ietf.\n");
     printf(
-            "                                  The default cipher is chacha20-ietf-poly1305.\n");
+        "                                  The default cipher is chacha20-ietf-poly1305.\n");
     printf("\n");
     printf(
-            "       [-a <user>]                Run as another user.\n");
+        "       [-a <user>]                Run as another user.\n");
     printf(
-            "       [-f <pid_file>]            The file path to store pid.\n");
+        "       [-f <pid_file>]            The file path to store pid.\n");
     printf(
-            "       [-t <timeout>]             Socket timeout in seconds.\n");
+        "       [-t <timeout>]             Socket timeout in seconds.\n");
     printf(
-            "       [-c <config_file>]         The path to config file.\n");
+        "       [-c <config_file>]         The path to config file.\n");
 #ifdef HAVE_SETRLIMIT
     printf(
-            "       [-n <number>]              Max number of open files.\n");
+        "       [-n <number>]              Max number of open files.\n");
 #endif
 #ifndef MODULE_REDIR
     printf(
-            "       [-i <interface>]           Network interface to bind.\n");
+        "       [-i <interface>]           Network interface to bind.\n");
 #endif
     printf(
-            "       [-b <local_address>]       Local address to bind.\n");
+        "       [-b <local_address>]       Local address to bind.\n");
     printf("\n");
     printf(
-            "       [-u]                       Enable UDP relay.\n");
+        "       [-u]                       Enable UDP relay.\n");
 #ifdef MODULE_REDIR
     printf(
         "                                  TPROXY is required in redir mode.\n");
 #endif
     printf(
-            "       [-U]                       Enable UDP relay and disable TCP relay.\n");
+        "       [-U]                       Enable UDP relay and disable TCP relay.\n");
 #ifdef MODULE_REDIR
     printf(
         "       [-T]                       Use tproxy instead of redirect (for tcp).\n");
@@ -385,24 +396,24 @@ usage() {
         "       [-d <addr>]                Name servers for internal DNS resolver.\n");
 #endif
     printf(
-            "       [--reuse-port]             Enable port reuse.\n");
+        "       [--reuse-port]             Enable port reuse.\n");
 #if defined(MODULE_REMOTE) || defined(MODULE_LOCAL) || defined(MODULE_REDIR)
     printf(
-            "       [--fast-open]              Enable TCP fast open.\n");
+        "       [--fast-open]              Enable TCP fast open.\n");
     printf(
-            "                                  with Linux kernel > 3.7.0.\n");
+        "                                  with Linux kernel > 3.7.0.\n");
 #endif
     printf(
-            "       [--tcp-incoming-sndbuf]    Size of the incoming connection TCP send buffer.\n");
+        "       [--tcp-incoming-sndbuf]    Size of the incoming connection TCP send buffer.\n");
     printf(
-            "       [--tcp-incoming-rcvbuf]    Size of the incoming connection TCP receive buffer.\n");
+        "       [--tcp-incoming-rcvbuf]    Size of the incoming connection TCP receive buffer.\n");
     printf(
-            "       [--tcp-outgoing-sndbuf]    Size of the outgoing connection TCP send buffer.\n");
+        "       [--tcp-outgoing-sndbuf]    Size of the outgoing connection TCP send buffer.\n");
     printf(
-            "       [--tcp-outgoing-rcvbuf]    Size of the outgoing connection TCP receive buffer.\n");
+        "       [--tcp-outgoing-rcvbuf]    Size of the outgoing connection TCP receive buffer.\n");
 #if defined(MODULE_REMOTE) || defined(MODULE_LOCAL)
     printf(
-            "       [--acl <acl_file>]         Path to ACL (Access Control List).\n");
+        "       [--acl <acl_file>]         Path to ACL (Access Control List).\n");
 #endif
 #if defined(MODULE_REMOTE) || defined(MODULE_MANAGER)
     printf(
@@ -415,10 +426,10 @@ usage() {
         "       [-D <path>]                Path to the working directory of ss-manager.\n");
 #endif
     printf(
-            "       [--mtu <MTU>]              MTU of your network interface.\n");
+        "       [--mtu <MTU>]              MTU of your network interface.\n");
 #ifdef __linux__
     printf(
-            "       [--mptcp]                  Enable Multipath TCP on MPTCP Kernel.\n");
+        "       [--mptcp]                  Enable Multipath TCP on MPTCP Kernel.\n");
 #ifdef USE_NFTABLES
     printf(
         "       [--nftables-sets <sets>]   Add malicious IP into nftables sets.\n");
@@ -428,24 +439,25 @@ usage() {
 #endif
 #ifndef MODULE_MANAGER
     printf(
-            "       [--no-delay]               Enable TCP_NODELAY.\n");
+        "       [--no-delay]               Enable TCP_NODELAY.\n");
     printf(
-            "       [--key <key_in_base64>]    Key of your remote server.\n");
+        "       [--key <key_in_base64>]    Key of your remote server.\n");
 #endif
     printf(
-            "       [--plugin <name>]          Enable SIP003 plugin. (Experimental)\n");
+        "       [--plugin <name>]          Enable SIP003 plugin. (Experimental)\n");
     printf(
-            "       [--plugin-opts <options>]  Set SIP003 plugin options. (Experimental)\n");
+        "       [--plugin-opts <options>]  Set SIP003 plugin options. (Experimental)\n");
     printf("\n");
     printf(
-            "       [-v]                       Verbose mode.\n");
+        "       [-v]                       Verbose mode.\n");
     printf(
-            "       [-h, --help]               Print this message.\n");
+        "       [-h, --help]               Print this message.\n");
     printf("\n");
 }
 
 void
-daemonize(const char *path) {
+daemonize(const char *path)
+{
 #ifndef __MINGW32__
     /* Our process ID and Session ID */
     pid_t pid, sid;
@@ -464,7 +476,7 @@ daemonize(const char *path) {
             FATAL("Invalid pid file\n");
         }
 
-        fprintf(file, "%d", (int) pid);
+        fprintf(file, "%d", (int)pid);
         fclose(file);
         exit(EXIT_SUCCESS);
     }
@@ -509,8 +521,9 @@ daemonize(const char *path) {
 #ifdef HAVE_SETRLIMIT
 
 int
-set_nofile(int nofile) {
-    struct rlimit limit = {nofile, nofile}; /* set both soft and hard limit */
+set_nofile(int nofile)
+{
+    struct rlimit limit = { nofile, nofile }; /* set both soft and hard limit */
 
     if (nofile <= 0) {
         FATAL("nofile must be greater than 0\n");
@@ -519,7 +532,7 @@ set_nofile(int nofile) {
     if (setrlimit(RLIMIT_NOFILE, &limit) < 0) {
         if (errno == EPERM) {
             LOGE(
-                    "insufficient permission to change NOFILE, not starting as root?");
+                "insufficient permission to change NOFILE, not starting as root?");
             return -1;
         } else if (errno == EINVAL) {
             LOGE("invalid nofile, decrease nofile and try again");
@@ -536,11 +549,12 @@ set_nofile(int nofile) {
 #endif
 
 char *
-get_default_conf(void) {
+get_default_conf(void)
+{
 #ifndef __MINGW32__
     static char sysconf[] = "/etc/shadowsocks-libev/config.json";
     static char *userconf = NULL;
-    static int buf_size = 0;
+    static int buf_size   = 0;
     char *conf_home;
 
     conf_home = getenv("XDG_CONFIG_HOME");
@@ -576,14 +590,16 @@ get_default_conf(void) {
 }
 
 uint16_t
-load16_be(const void *s) {
-    const uint8_t *in = (const uint8_t *) s;
-    return ((uint16_t) in[0] << 8)
-           | ((uint16_t) in[1]);
+load16_be(const void *s)
+{
+    const uint8_t *in = (const uint8_t *)s;
+    return ((uint16_t)in[0] << 8)
+           | ((uint16_t)in[1]);
 }
 
 int
-get_mptcp(int enable) {
+get_mptcp(int enable)
+{
     const char oldpath[] = "/proc/sys/net/mptcp/mptcp_enabled";
 
     if (enable) {

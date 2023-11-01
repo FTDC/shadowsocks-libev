@@ -25,18 +25,18 @@
 #include <string.h>
 #include <time.h>
 
+#include "crypto.h"
 #include "netutils.h"
 #include "utils.h"
 #include "jconf.h"
 #include "json.h"
 #include "string.h"
-
 #include <libcork/core.h>
 
 #define check_json_value_type(value, expected_type, message) \
     do { \
         if ((value)->type != (expected_type)) \
-            FATAL((message)); \
+        FATAL((message)); \
     } while (0)
 
 static char *
@@ -62,6 +62,14 @@ free_addr(ss_addr_t *addr)
     ss_free(addr->port);
 }
 
+/**
+ * @brief 解析地址字符串
+ *
+ * @param str_in 地址字符串
+ * @param addr 解析结果存储的结构体指针
+ *
+ * @return 无
+ */
 void
 parse_addr(const char *str_in, ss_addr_t *addr)
 {
@@ -218,7 +226,7 @@ read_jconf(const char *file)
                         conf.remote_num = j + 1;
                     }
                 } else if (value->type == json_string) {
-                    char* tmp_str = to_string(value);
+                    char *tmp_str = to_string(value);
                     parse_addr(tmp_str, conf.remote_addr);
                     ss_free(tmp_str);
                     conf.remote_num = 1;

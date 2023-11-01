@@ -47,14 +47,13 @@
 #define SOCKS5_REP_ADDRTYPE_NOT_SUPPORTED 0x08
 #define SOCKS5_REP_FF_UNASSIGNED 0x09
 
-
 // 可选认证方法请求
 //        选择一种认证方法
-//发送用户名和密码
+// 发送用户名和密码
 //        验证身份成功
-//浏览器
+// 浏览器
 //        Socks5代理服务器
-//认证阶段完成
+// 认证阶段完成
 //  https://www.ietf.org/rfc/rfc1928.txt
 
 // 认证方法请求，方法数和支持的方法
@@ -102,7 +101,7 @@ struct method_select_response {
 //        | 1  |  1  | X'00' |  1   | Variable |    2     |
 //        +----+-----+-------+------+----------+----------+
 //
-//VERSION SOCKS协议版本，固定0x05
+// VERSION SOCKS协议版本，固定0x05
 //  CMD
 //             o  CONNECT X'01' tpc 代理
 //             o  BIND X'02' tpc 代理
@@ -111,8 +110,8 @@ struct method_select_response {
 //             o  IP V4 address: X'01'
 //             o  DOMAINNAME: X'03'
 //             o  IP V6 address: X'04'
-//RSV 保留字段  值为0x00
-//RESPONSE 响应命令
+// RSV 保留字段  值为0x00
+// RESPONSE 响应命令
 //      0x00 代理服务器连接目标服务器成功
 //      0x01 代理服务器故障
 //      0x02 代理服务器规则集不允许连接
@@ -123,8 +122,8 @@ struct method_select_response {
 //      0x07 不支持的命令
 //      0x08 不支持的目标服务器地址类型
 //      0x09 - 0xFF 未分配
-//DST.ADDR 目标服务器地址，一个可变长度的值
-//DST.PORT 目标服务器端口
+// DST.ADDR 目标服务器地址，一个可变长度的值
+// DST.PORT 目标服务器端口
 struct socks5_request {
     unsigned char ver; // SOCKS协议版本，固定0x05
     unsigned char cmd; // CMD CONNECT X'01', o  BIND X'02',  UDP ASSOCIATE X'03'
@@ -138,8 +137,8 @@ struct socks5_request {
 //        | 1  |  1  | X'00' |  1   | Variable |    2     |
 //        +----+-----+-------+------+----------+----------+
 
-//VERSION SOCKS协议版本，固定0x05
-//RESPONSE 响应命令
+// VERSION SOCKS协议版本，固定0x05
+// RESPONSE 响应命令
 //      0x00 代理服务器连接目标服务器成功
 //      0x01 代理服务器故障
 //      0x02 代理服务器规则集不允许连接
@@ -150,13 +149,13 @@ struct socks5_request {
 //      0x07 不支持的命令
 //      0x08 不支持的目标服务器地址类型
 //      0x09 - 0xFF 未分配
-//RSV 保留字段  值为0x00
+// RSV 保留字段  值为0x00
 //  ATYP   address type of following address
 //             o  IP V4 address: X'01'
 //             o  DOMAINNAME: X'03'
 //             o  IP V6 address: X'04'
-//BND.ADDR 代理服务器连接目标服务器成功后的代理服务器IP
-//BND.PORT 代理服务器连接目标服务器成功后的代理服务器端口
+// BND.ADDR 代理服务器连接目标服务器成功后的代理服务器IP
+// BND.PORT 代理服务器连接目标服务器成功后的代理服务器端口
 struct socks5_response {
     unsigned char ver; // SOCKS协议版本，固定0x05
     unsigned char rep; //  RESPONSE 响应命令     0x00 代理服务器连接目标服务器成功

@@ -713,7 +713,6 @@ manager_recv_cb(EV_P_ ev_io *w, int revents)
         }
 
         update_stat(port, traffic);
-
     } else if (strcmp(action, "ping") == 0) {
         struct cork_hash_table_entry *entry;
         struct cork_hash_table_iterator server_iter;

@@ -681,14 +681,14 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
         } else if (err == CRYPTO_NEED_MORE) {
             if (plen == 0)
                 return err;
-            else{
-                memmove((uint8_t *)cipher_ctx->chunk->data, 
-			(uint8_t *)cipher_ctx->chunk->data + cidx, chunk_clen);
+            else {
+                memmove((uint8_t *)cipher_ctx->chunk->data,
+                        (uint8_t *)cipher_ctx->chunk->data + cidx, chunk_clen);
                 break;
             }
         }
         cipher_ctx->chunk->len = chunk_clen;
-        cidx += cipher_ctx->cipher->tag_len * 2 + CHUNK_SIZE_LEN + chunk_plen;
+        cidx                  += cipher_ctx->cipher->tag_len * 2 + CHUNK_SIZE_LEN + chunk_plen;
         plen                  += chunk_plen;
     }
     plaintext->len = plen;

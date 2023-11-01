@@ -87,8 +87,8 @@ static void close_and_free_remote(EV_P_ remote_t *remote);
 static void free_server(server_t *server);
 static void close_and_free_server(EV_P_ server_t *server);
 
-int verbose    = 0;
-int reuse_port = 0;
+int verbose             = 0;
+int reuse_port          = 0;
 int tcp_incoming_sndbuf = 0;
 int tcp_incoming_rcvbuf = 0;
 int tcp_outgoing_sndbuf = 0;
@@ -187,10 +187,10 @@ create_and_bind(const char *addr, const char *port)
         if (tcp_tproxy) {
             int level = 0, optname = 0;
             if (rp->ai_family == AF_INET) {
-                level = IPPROTO_IP;
+                level   = IPPROTO_IP;
                 optname = IP_TRANSPARENT;
             } else {
-                level = IPPROTO_IPV6;
+                level   = IPPROTO_IPV6;
                 optname = IPV6_TRANSPARENT;
             }
 
@@ -923,21 +923,21 @@ main(int argc, char **argv)
     memset(remote_addr, 0, sizeof(ss_addr_t) * MAX_REMOTE_NUM);
 
     static struct option long_options[] = {
-        { "fast-open",   no_argument,       NULL, GETOPT_VAL_FAST_OPEN   },
-        { "mtu",         required_argument, NULL, GETOPT_VAL_MTU         },
-        { "mptcp",       no_argument,       NULL, GETOPT_VAL_MPTCP       },
-        { "plugin",      required_argument, NULL, GETOPT_VAL_PLUGIN      },
-        { "plugin-opts", required_argument, NULL, GETOPT_VAL_PLUGIN_OPTS },
-        { "reuse-port",  no_argument,       NULL, GETOPT_VAL_REUSE_PORT  },
+        { "fast-open",           no_argument,       NULL, GETOPT_VAL_FAST_OPEN           },
+        { "mtu",                 required_argument, NULL, GETOPT_VAL_MTU                 },
+        { "mptcp",               no_argument,       NULL, GETOPT_VAL_MPTCP               },
+        { "plugin",              required_argument, NULL, GETOPT_VAL_PLUGIN              },
+        { "plugin-opts",         required_argument, NULL, GETOPT_VAL_PLUGIN_OPTS         },
+        { "reuse-port",          no_argument,       NULL, GETOPT_VAL_REUSE_PORT          },
         { "tcp-incoming-sndbuf", required_argument, NULL, GETOPT_VAL_TCP_INCOMING_SNDBUF },
         { "tcp-incoming-rcvbuf", required_argument, NULL, GETOPT_VAL_TCP_INCOMING_RCVBUF },
         { "tcp-outgoing-sndbuf", required_argument, NULL, GETOPT_VAL_TCP_OUTGOING_SNDBUF },
         { "tcp-outgoing-rcvbuf", required_argument, NULL, GETOPT_VAL_TCP_OUTGOING_RCVBUF },
-        { "no-delay",    no_argument,       NULL, GETOPT_VAL_NODELAY     },
-        { "password",    required_argument, NULL, GETOPT_VAL_PASSWORD    },
-        { "key",         required_argument, NULL, GETOPT_VAL_KEY         },
-        { "help",        no_argument,       NULL, GETOPT_VAL_HELP        },
-        { NULL,          0,                 NULL, 0                      }
+        { "no-delay",            no_argument,       NULL, GETOPT_VAL_NODELAY             },
+        { "password",            required_argument, NULL, GETOPT_VAL_PASSWORD            },
+        { "key",                 required_argument, NULL, GETOPT_VAL_KEY                 },
+        { "help",                no_argument,       NULL, GETOPT_VAL_HELP                },
+        { NULL,                  0,                 NULL, 0                              }
     };
 
     opterr = 0;

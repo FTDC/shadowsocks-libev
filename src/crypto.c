@@ -52,9 +52,10 @@
  * @return 内存大小
  */
 int
-balloc(buffer_t *ptr, size_t capacity) {
+balloc(buffer_t *ptr, size_t capacity)
+{
     sodium_memzero(ptr, sizeof(buffer_t));
-    ptr->data = ss_malloc(capacity);
+    ptr->data     = ss_malloc(capacity);
     ptr->capacity = capacity;
     return capacity;
 }
@@ -67,12 +68,13 @@ balloc(buffer_t *ptr, size_t capacity) {
  * @return
  */
 int
-brealloc(buffer_t *ptr, size_t len, size_t capacity) {
+brealloc(buffer_t *ptr, size_t len, size_t capacity)
+{
     if (ptr == NULL)
         return -1;
     size_t real_capacity = max(len, capacity);
     if (ptr->capacity < real_capacity) {
-        ptr->data = ss_realloc(ptr->data, real_capacity);
+        ptr->data     = ss_realloc(ptr->data, real_capacity);
         ptr->capacity = real_capacity;
     }
     return real_capacity;
@@ -83,12 +85,13 @@ brealloc(buffer_t *ptr, size_t len, size_t capacity) {
  * @param ptr 指针
  */
 void
-bfree(buffer_t *ptr) {
+bfree(buffer_t *ptr)
+{
     if (ptr == NULL)
         return;
     // 指针的 index 移动的位置
-    ptr->idx = 0;
-    ptr->len = 0;  // 长度
+    ptr->idx      = 0;
+    ptr->len      = 0; // 长度
     ptr->capacity = 0; // 容器大小
     if (ptr->data != NULL) {
         ss_free(ptr->data); // 释放内容指针的内容
@@ -103,7 +106,8 @@ bfree(buffer_t *ptr) {
  * @return
  */
 int
-bprepend(buffer_t *dst, buffer_t *src, size_t capacity) {
+bprepend(buffer_t *dst, buffer_t *src, size_t capacity)
+{
     brealloc(dst, dst->len + src->len, capacity);
     memmove(dst->data + src->len, dst->data, dst->len);
     memcpy(dst->data, src->data, src->len);
@@ -112,14 +116,16 @@ bprepend(buffer_t *dst, buffer_t *src, size_t capacity) {
 }
 
 int
-rand_bytes(void *output, int len) {
+rand_bytes(void *output, int len)
+{
     randombytes_buf(output, len);
     // always return success
     return 0;
 }
 
 unsigned char *
-crypto_md5(const unsigned char *d, size_t n, unsigned char *md) {
+crypto_md5(const unsigned char *d, size_t n, unsigned char *md)
+{
     static unsigned char m[16];
     if (md == NULL) {
         md = m;
@@ -134,7 +140,8 @@ crypto_md5(const unsigned char *d, size_t n, unsigned char *md) {
 }
 
 static void
-entropy_check(void) {
+entropy_check(void)
+{
 #if defined(__linux__) && defined(HAVE_LINUX_RANDOM_H) && defined(RNDGETENTCNT)
     int fd;
     int c;
@@ -152,7 +159,8 @@ entropy_check(void) {
 }
 
 crypto_t *
-crypto_init(const char *password, const char *key, const char *method) {
+crypto_init(const char *password, const char *key, const char *method)
+{
     int i, m = -1;
 
     entropy_check();
@@ -179,15 +187,15 @@ crypto_init(const char *password, const char *key, const char *method) {
             cipher_t *cipher = stream_init(password, key, method);
             if (cipher == NULL)
                 return NULL;
-            crypto_t *crypto = (crypto_t *) ss_malloc(sizeof(crypto_t));
-            crypto_t tmp = {
-                    .cipher      = cipher,
-                    .encrypt_all = &stream_encrypt_all,
-                    .decrypt_all = &stream_decrypt_all,
-                    .encrypt     = &stream_encrypt,
-                    .decrypt     = &stream_decrypt,
-                    .ctx_init    = &stream_ctx_init,
-                    .ctx_release = &stream_ctx_release,
+            crypto_t *crypto = (crypto_t *)ss_malloc(sizeof(crypto_t));
+            crypto_t tmp     = {
+                .cipher      = cipher,
+                .encrypt_all = &stream_encrypt_all,
+                .decrypt_all = &stream_decrypt_all,
+                .encrypt     = &stream_encrypt,
+                .decrypt     = &stream_decrypt,
+                .ctx_init    = &stream_ctx_init,
+                .ctx_release = &stream_ctx_release,
             };
             memcpy(crypto, &tmp, sizeof(crypto_t));
             return crypto;
@@ -202,15 +210,15 @@ crypto_init(const char *password, const char *key, const char *method) {
             cipher_t *cipher = aead_init(password, key, method);
             if (cipher == NULL)
                 return NULL;
-            crypto_t *crypto = (crypto_t *) ss_malloc(sizeof(crypto_t));
-            crypto_t tmp = {
-                    .cipher      = cipher,
-                    .encrypt_all = &aead_encrypt_all,
-                    .decrypt_all = &aead_decrypt_all,
-                    .encrypt     = &aead_encrypt,
-                    .decrypt     = &aead_decrypt,
-                    .ctx_init    = &aead_ctx_init,
-                    .ctx_release = &aead_ctx_release,
+            crypto_t *crypto = (crypto_t *)ss_malloc(sizeof(crypto_t));
+            crypto_t tmp     = {
+                .cipher      = cipher,
+                .encrypt_all = &aead_encrypt_all,
+                .decrypt_all = &aead_decrypt_all,
+                .encrypt     = &aead_encrypt,
+                .decrypt     = &aead_decrypt,
+                .ctx_init    = &aead_ctx_init,
+                .ctx_release = &aead_ctx_release,
             };
             memcpy(crypto, &tmp, sizeof(crypto_t));
             return crypto;
@@ -222,9 +230,10 @@ crypto_init(const char *password, const char *key, const char *method) {
 }
 
 int
-crypto_derive_key(const char *pass, uint8_t *key, size_t key_len) {
+crypto_derive_key(const char *pass, uint8_t *key, size_t key_len)
+{
     size_t datal;
-    datal = strlen((const char *) pass);
+    datal = strlen((const char *)pass);
 
     const digest_type_t *md = mbedtls_md_info_from_string("MD5");
     if (md == NULL) {
@@ -249,7 +258,7 @@ crypto_derive_key(const char *pass, uint8_t *key, size_t key_len) {
         if (addmd) {
             mbedtls_md_update(&c, md_buf, mds);
         }
-        mbedtls_md_update(&c, (uint8_t *) pass, datal);
+        mbedtls_md_update(&c, (uint8_t *)pass, datal);
         mbedtls_md_finish(&c, &(md_buf[0]));
 
         for (i = 0; i < mds; i++, j++) {
@@ -268,7 +277,8 @@ int
 crypto_hkdf(const mbedtls_md_info_t *md, const unsigned char *salt,
             int salt_len, const unsigned char *ikm, int ikm_len,
             const unsigned char *info, int info_len, unsigned char *okm,
-            int okm_len) {
+            int okm_len)
+{
     unsigned char prk[MBEDTLS_MD_MAX_SIZE];
 
     return crypto_hkdf_extract(md, salt, salt_len, ikm, ikm_len, prk) ||
@@ -280,9 +290,10 @@ crypto_hkdf(const mbedtls_md_info_t *md, const unsigned char *salt,
 int
 crypto_hkdf_extract(const mbedtls_md_info_t *md, const unsigned char *salt,
                     int salt_len, const unsigned char *ikm, int ikm_len,
-                    unsigned char *prk) {
+                    unsigned char *prk)
+{
     int hash_len;
-    unsigned char null_salt[MBEDTLS_MD_MAX_SIZE] = {'\0'};
+    unsigned char null_salt[MBEDTLS_MD_MAX_SIZE] = { '\0' };
 
     if (salt_len < 0) {
         return CRYPTO_ERROR;
@@ -291,7 +302,7 @@ crypto_hkdf_extract(const mbedtls_md_info_t *md, const unsigned char *salt,
     hash_len = mbedtls_md_get_size(md);
 
     if (salt == NULL) {
-        salt = null_salt;
+        salt     = null_salt;
         salt_len = hash_len;
     }
 
@@ -302,7 +313,8 @@ crypto_hkdf_extract(const mbedtls_md_info_t *md, const unsigned char *salt,
 int
 crypto_hkdf_expand(const mbedtls_md_info_t *md, const unsigned char *prk,
                    int prk_len, const unsigned char *info, int info_len,
-                   unsigned char *okm, int okm_len) {
+                   unsigned char *okm, int okm_len)
+{
     int hash_len;
     int N;
     int T_len = 0, where = 0, i, ret;
@@ -320,7 +332,7 @@ crypto_hkdf_expand(const mbedtls_md_info_t *md, const unsigned char *prk,
     }
 
     if (info == NULL) {
-        info = (const unsigned char *) "";
+        info = (const unsigned char *)"";
     }
 
     N = okm_len / hash_len;
@@ -359,7 +371,7 @@ crypto_hkdf_expand(const mbedtls_md_info_t *md, const unsigned char *prk,
 
         memcpy(okm + where, T, (i != N) ? hash_len : (okm_len - where));
         where += hash_len;
-        T_len = hash_len;
+        T_len  = hash_len;
     }
 
     mbedtls_md_free(&ctx);
@@ -368,9 +380,10 @@ crypto_hkdf_expand(const mbedtls_md_info_t *md, const unsigned char *prk,
 }
 
 int
-crypto_parse_key(const char *base64, uint8_t *key, size_t key_len) {
+crypto_parse_key(const char *base64, uint8_t *key, size_t key_len)
+{
     size_t base64_len = strlen(base64);
-    int out_len = BASE64_SIZE(base64_len);
+    int out_len       = BASE64_SIZE(base64_len);
     uint8_t out[out_len];
 
     out_len = base64_decode(out, base64, out_len);

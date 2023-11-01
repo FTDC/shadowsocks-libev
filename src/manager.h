@@ -35,6 +35,8 @@
 #include "jconf.h"
 
 #include "common.h"
+#include "uthash.h"
+#include "crypto.h"
 
 struct manager_ctx {
     ev_io io;

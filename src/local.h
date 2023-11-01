@@ -37,7 +37,6 @@
 #include "winsock.h"
 #endif
 
-#include "crypto.h"
 #include "jconf.h"
 
 #include "common.h"
@@ -81,7 +80,7 @@ typedef struct server {
 typedef struct remote_ctx {
     ev_io io;  // 文件观察器
     ev_timer watcher; // 时间观察器
-
+    int auth_recived;
     int connected; // 是否链接
     struct remote *remote; // 远程链接服务器
 } remote_ctx_t;

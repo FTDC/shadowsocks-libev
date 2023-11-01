@@ -58,7 +58,7 @@
 #include <libmnl/libmnl.h>
 #include <libnftnl/set.h>
 /* the datatypes enum is picked from libnftables/datatype.h
-   to avoid to depend libnftables */
+ * to avoid to depend libnftables */
 enum datatypes {
     TYPE_IPADDR = 7,
     TYPE_IP6ADDR
@@ -117,8 +117,8 @@ static void close_and_free_server(EV_P_ server_t *server);
 static void resolv_cb(struct sockaddr *addr, void *data);
 static void resolv_free_cb(void *data);
 
-int verbose    = 0;
-int reuse_port = 0;
+int verbose             = 0;
+int reuse_port          = 0;
 int tcp_incoming_sndbuf = 0;
 int tcp_incoming_rcvbuf = 0;
 int tcp_outgoing_sndbuf = 0;
@@ -294,13 +294,14 @@ struct nftbl_set_info {
     char *table;
     char *name;
     uint32_t type;
-}* nftbl_badip_sets[16];
+} *nftbl_badip_sets[16];
 
 static struct nftnl_set *
-nftbl_build_set(const char* table, const char* name, void* addr, size_t len)
+nftbl_build_set(const char *table, const char *name, void *addr, size_t len)
 {
     struct nftnl_set *set = nftnl_set_alloc();
-    if (set == NULL) return NULL;
+    if (set == NULL)
+        return NULL;
     nftnl_set_set_str(set, NFTNL_SET_TABLE, table);
     nftnl_set_set_str(set, NFTNL_SET_NAME, name);
 
@@ -315,7 +316,7 @@ nftbl_build_set(const char* table, const char* name, void* addr, size_t len)
 }
 
 static uint32_t
-nftbl_build_nlmsg(void* buf, size_t *len, uint32_t family,
+nftbl_build_nlmsg(void *buf, size_t *len, uint32_t family,
                   struct nftnl_set *set)
 {
     uint32_t seq = time(NULL);
@@ -341,7 +342,8 @@ nftbl_send_request(void *request, size_t len, uint32_t seq,
                    mnl_cb_t cb, void *data)
 {
     struct mnl_socket *nl = mnl_socket_open(NETLINK_NETFILTER);
-    if (nl == NULL) return -1;
+    if (nl == NULL)
+        return -1;
 
     int ret = -1;
     uint8_t buf[MNL_SOCKET_BUFFER_SIZE];
@@ -359,18 +361,18 @@ nftbl_send_request(void *request, size_t len, uint32_t seq,
 }
 
 static void
-nftbl_report_addr(const struct sockaddr* addr)
+nftbl_report_addr(const struct sockaddr *addr)
 {
     uint32_t type;
-    void* data;
+    void *data;
     size_t size;
     if (addr->sa_family == AF_INET) {
         type = TYPE_IPADDR;
-        data = &((struct sockaddr_in*)addr)->sin_addr;
+        data = &((struct sockaddr_in *)addr)->sin_addr;
         size = sizeof(struct in_addr);
     } else if (addr->sa_family == AF_INET6) {
         type = TYPE_IP6ADDR;
-        data = &((struct sockaddr_in6*)addr)->sin6_addr;
+        data = &((struct sockaddr_in6 *)addr)->sin6_addr;
         size = sizeof(struct in6_addr);
     } else {
         return;
@@ -378,11 +380,11 @@ nftbl_report_addr(const struct sockaddr* addr)
 
     char buf[MNL_SOCKET_BUFFER_SIZE];
     for (int i = 0; nftbl_badip_sets[i]; ++i) {
-        struct nftbl_set_info* si = nftbl_badip_sets[i];
+        struct nftbl_set_info *si = nftbl_badip_sets[i];
         struct nftnl_set *set;
         if (si->type == type &&
             (set = nftbl_build_set(si->table, si->name, data, size))) {
-            size_t len = sizeof(buf);
+            size_t len   = sizeof(buf);
             uint32_t seq = nftbl_build_nlmsg(buf, &len, si->family, set);
             nftnl_set_free(set);
             if (nftbl_send_request(buf, len, seq, NULL, NULL) < 0 &&
@@ -395,7 +397,7 @@ nftbl_report_addr(const struct sockaddr* addr)
 static int
 nftbl_check_cb(const struct nlmsghdr *nlh, void *data)
 {
-    struct nftnl_set *set = (struct nftnl_set*)data;
+    struct nftnl_set *set = (struct nftnl_set *)data;
     if (nftnl_set_nlmsg_parse(nlh, set) < 0)
         return MNL_CB_ERROR;
 
@@ -406,20 +408,20 @@ nftbl_check_cb(const struct nlmsghdr *nlh, void *data)
     uint32_t len;
     const char *name = nftnl_set_get_data(set, NFTNL_SET_NAME, &len);
     for (int i = 0; nftbl_badip_sets[i]; ++i) {
-        struct nftbl_set_info* si = nftbl_badip_sets[i];
+        struct nftbl_set_info *si = nftbl_badip_sets[i];
         if (!memcmp(name, si->name, len)) {
             name = nftnl_set_get_data(set, NFTNL_SET_TABLE, &len);
             if (!si->table) {
                 size_t l = strlen(si->name) + 1;
-                si = realloc(si, sizeof(*si) + l + len);
-                si->name = (char*)(si + 1);
-                si->table = memcpy(si->name + l, name, len);
+                si                  = realloc(si, sizeof(*si) + l + len);
+                si->name            = (char *)(si + 1);
+                si->table           = memcpy(si->name + l, name, len);
                 nftbl_badip_sets[i] = si;
             } else if (memcmp(name, si->table, len)) {
                 continue;  /* table name not match */
             }
             si->family = nftnl_set_get_u32(set, NFTNL_SET_FAMILY);
-            si->type = type;
+            si->type   = type;
         }
     }
     return MNL_CB_OK;
@@ -429,21 +431,23 @@ static int
 nftbl_check(void)
 {
     struct nftnl_set *set = nftnl_set_alloc();
-    if (!set) return -1;
+    if (!set)
+        return -1;
 
     int ret;
     char buf[MNL_SOCKET_BUFFER_SIZE];
     uint32_t seq = time(NULL);
     struct nlmsghdr *nlh;
     nlh = nftnl_set_nlmsg_build_hdr(buf, NFT_MSG_GETSET, NFPROTO_UNSPEC,
-                                    NLM_F_DUMP|NLM_F_ACK, seq);
+                                    NLM_F_DUMP | NLM_F_ACK, seq);
     nftnl_set_nlmsg_build_payload(nlh, set);
     ret = nftbl_send_request(nlh, nlh->nlmsg_len, seq, nftbl_check_cb, set);
     nftnl_set_free(set);
-    if (ret < 0) return ret;
+    if (ret < 0)
+        return ret;
 
     for (int i = 0; nftbl_badip_sets[i]; ++i) {
-        struct nftbl_set_info* si = nftbl_badip_sets[i];
+        struct nftbl_set_info *si = nftbl_badip_sets[i];
         if (si->family == NFPROTO_UNSPEC) {
             if (si->table)
                 LOGE("set '%s' not found in table '%s'", si->name, si->table);
@@ -458,9 +462,9 @@ nftbl_check(void)
 }
 
 static int
-nftbl_init(const char* set_str)
+nftbl_init(const char *set_str)
 {
-    struct nftbl_set_info* si;
+    struct nftbl_set_info *si;
     const char *p0 = set_str, *p = p0, *d = NULL;
     int i = 0;
     do {
@@ -470,13 +474,13 @@ nftbl_init(const char* set_str)
             size_t l = p - p0 + 1;
             si = malloc(sizeof(*si) + l);
             memset(si, 0, sizeof(*si));
-            si->name = memcpy(si + 1, p0, l);
+            si->name        = memcpy(si + 1, p0, l);
             si->name[l - 1] = '\0';
             if (d) {
-                si->table = si->name;
-                si->name = si->table + (d - p0);
+                si->table     = si->name;
+                si->name      = si->table + (d - p0);
                 *(si->name++) = '\0';
-                d = NULL;
+                d             = NULL;
             }
             nftbl_badip_sets[i++] = si;
             if (i == sizeof(nftbl_badip_sets) / sizeof(*si) - 1)
@@ -487,6 +491,7 @@ nftbl_init(const char* set_str)
     } while (*(p++));
     return nftbl_check();
 }
+
 #endif
 
 static void
@@ -1139,7 +1144,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             return;
         } else {
             server->buf->len -= offset;
-            server->buf->idx = offset;
+            server->buf->idx  = offset;
         }
 
         if (verbose) {
@@ -1814,29 +1819,29 @@ main(int argc, char **argv)
     memset(&local_addr_v6, 0, sizeof(struct sockaddr_storage));
 
     static struct option long_options[] = {
-        { "fast-open",       no_argument,       NULL, GETOPT_VAL_FAST_OPEN   },
-        { "reuse-port",      no_argument,       NULL, GETOPT_VAL_REUSE_PORT  },
+        { "fast-open",           no_argument,       NULL, GETOPT_VAL_FAST_OPEN           },
+        { "reuse-port",          no_argument,       NULL, GETOPT_VAL_REUSE_PORT          },
         { "tcp-incoming-sndbuf", required_argument, NULL, GETOPT_VAL_TCP_INCOMING_SNDBUF },
         { "tcp-incoming-rcvbuf", required_argument, NULL, GETOPT_VAL_TCP_INCOMING_RCVBUF },
         { "tcp-outgoing-sndbuf", required_argument, NULL, GETOPT_VAL_TCP_OUTGOING_SNDBUF },
         { "tcp-outgoing-rcvbuf", required_argument, NULL, GETOPT_VAL_TCP_OUTGOING_RCVBUF },
-        { "no-delay",        no_argument,       NULL, GETOPT_VAL_NODELAY     },
-        { "acl",             required_argument, NULL, GETOPT_VAL_ACL         },
-        { "manager-address", required_argument, NULL,
+        { "no-delay",            no_argument,       NULL, GETOPT_VAL_NODELAY             },
+        { "acl",                 required_argument, NULL, GETOPT_VAL_ACL                 },
+        { "manager-address",     required_argument, NULL,
           GETOPT_VAL_MANAGER_ADDRESS },
-        { "mtu",             required_argument, NULL, GETOPT_VAL_MTU         },
-        { "help",            no_argument,       NULL, GETOPT_VAL_HELP        },
-        { "plugin",          required_argument, NULL, GETOPT_VAL_PLUGIN      },
-        { "plugin-opts",     required_argument, NULL, GETOPT_VAL_PLUGIN_OPTS },
-        { "password",        required_argument, NULL, GETOPT_VAL_PASSWORD    },
-        { "key",             required_argument, NULL, GETOPT_VAL_KEY         },
+        { "mtu",                 required_argument, NULL, GETOPT_VAL_MTU                 },
+        { "help",                no_argument,       NULL, GETOPT_VAL_HELP                },
+        { "plugin",              required_argument, NULL, GETOPT_VAL_PLUGIN              },
+        { "plugin-opts",         required_argument, NULL, GETOPT_VAL_PLUGIN_OPTS         },
+        { "password",            required_argument, NULL, GETOPT_VAL_PASSWORD            },
+        { "key",                 required_argument, NULL, GETOPT_VAL_KEY                 },
 #ifdef __linux__
-        { "mptcp",           no_argument,       NULL, GETOPT_VAL_MPTCP       },
+        { "mptcp",               no_argument,       NULL, GETOPT_VAL_MPTCP               },
 #ifdef USE_NFTABLES
-        { "nftables-sets",   required_argument, NULL, GETOPT_VAL_NFTABLES_SETS },
+        { "nftables-sets",       required_argument, NULL, GETOPT_VAL_NFTABLES_SETS       },
 #endif
 #endif
-        { NULL,              0,                 NULL, 0                      }
+        { NULL,                  0,                 NULL, 0                              }
     };
 
     opterr = 0;

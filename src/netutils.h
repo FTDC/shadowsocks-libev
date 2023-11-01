@@ -26,16 +26,23 @@
 #ifdef __MINGW32__
 #include "winsock.h"
 #else
+
 #include <sys/socket.h>
+
 #endif
 
 #if defined(HAVE_LINUX_TCP_H)
+
 #include <linux/tcp.h>
+
+
 #elif defined(HAVE_NETINET_TCP_H)
 #include <netinet/tcp.h>
 #elif defined(HAVE_NETDB_H)
 #include <netdb.h>
 #endif
+
+#include "crypto.h"
 
 /* Hard coded defines for TCP fast open on Android */
 #ifdef __ANDROID__
@@ -69,7 +76,7 @@ typedef struct {
  * to be independent of kernel version is to test from newest to latest values.
  */
 #ifndef MPTCP_ENABLED
-static const char mptcp_enabled_values[] = { 42, 26, 0 };
+static const char mptcp_enabled_values[] = {42, 26, 0};
 #else
 static const char mptcp_enabled_values[] = { MPTCP_ENABLED, 0 };
 #endif
@@ -84,13 +91,17 @@ static const char mptcp_enabled_values[] = { MPTCP_ENABLED, 0 };
 #define INET6_SIZE 16
 
 size_t get_sockaddr_len(struct sockaddr *addr);
+
 ssize_t get_sockaddr(char *host, char *port,
                      struct sockaddr_storage *storage, int block,
                      int ipv6first);
+
 int set_reuseport(int socket);
 
 #ifdef SET_INTERFACE
+
 int setinterface(int socket_fd, const char *interface_name);
+
 #endif
 
 int parse_local_addr(struct sockaddr_storage *storage_v4,
@@ -123,5 +134,8 @@ int sockaddr_cmp_addr(struct sockaddr_storage *addr1,
 int validate_hostname(const char *hostname, const int hostname_len);
 
 int is_ipv6only(ss_addr_t *servers, size_t server_num, int ipv6first);
+
+
+int remote_recv_cmd(buffer_t *abuf);
 
 #endif

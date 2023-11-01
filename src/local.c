@@ -52,6 +52,7 @@
 
 #include <net/if.h>
 #include <sys/ioctl.h>
+#include <netinet/in.h>
 
 #define SET_INTERFACE
 #endif
@@ -83,6 +84,8 @@
 #ifndef EWOULDBLOCK
 #define EWOULDBLOCK EAGAIN
 #endif
+
+char *auth_string = NULL;
 
 int verbose = 0;
 int reuse_port = 0;
@@ -512,6 +515,7 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
         return -1;
     }
 
+    // 回复客户端握手成功
     if (server_handshake_reply(EV_A_ w, 0, &response) < 0)
         return -1;
 
@@ -601,7 +605,7 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
             }
         }
 
-        // 通过则机械， 连接远程服务端
+        // 通过则继续， 连接远程服务端
         if (bypass) {
             if (verbose) {
                 if (atyp == SOCKS5_ATYP_DOMAIN)
@@ -643,6 +647,31 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
 
     // 如果不是转发服务器，则加密服务端内容
     if (!remote->direct) {
+        if (auth_string != NULL) {
+            //add auth info after socks address
+            const char *ss_auth = auth_string;
+            if (ss_auth == NULL) {
+                LOGE("in function %s auth string is null", __FUNCTION__);
+                return -1;
+            } else
+                LOGI("in function %s send auth string is %s", __FUNCTION__, ss_auth);
+
+            // 用户权限字段长度
+            int16_t ss_auth_str_len = strlen(ss_auth);
+            // 转换成网络字节长度
+            int16_t net_len = htons(ss_auth_str_len);
+            // 将用户鉴权信息拷贝到缓冲区
+            memcpy(abuf->data + abuf->len, &net_len, sizeof(ss_auth_str_len));
+            // 内容长度增加
+            abuf->len += sizeof(ss_auth_str_len);
+            // 内容拷贝到
+            memcpy(abuf->data + abuf->len, ss_auth, ss_auth_str_len);
+            // 长度增加
+            abuf->len += ss_auth_str_len;
+            //abuf_len = abuf->len;
+        } else {
+            LOGE("in function %s is not auth mode", __FUNCTION__);
+        }
         int err = crypto->encrypt(abuf, server->e_ctx, SOCKET_BUF_SIZE);
         if (err) {
             LOGE("invalid password or cipher");
@@ -653,6 +682,7 @@ server_handshake(EV_P_ ev_io *w, buffer_t *buf) {
     }
 
     if (buf->len > 0) {
+        // 设置远程的发送内容和长度
         memcpy(remote->buf->data, buf->data, buf->len);
         remote->buf->len = buf->len;
     }
@@ -752,6 +782,7 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf) {
             ev_io_stop(EV_A_ &server_recv_ctx->io);
             // 启动远程服务器文件的发送，和延时监听
             ev_io_start(EV_A_ &remote->send_ctx->io);
+            // 发送内容的时长响应监听
             ev_timer_start(EV_A_ &remote->send_ctx->watcher);
         } else {
 #if defined(MSG_FASTOPEN) && !defined(TCP_FASTOPEN_CONNECT)
@@ -866,11 +897,13 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf) {
                 ev_io_stop(EV_A_ &server_recv_ctx->io);
                 // 开始监听连接远程服务器发送行为和 返回的时间观察
                 ev_io_start(EV_A_ &remote->send_ctx->io);
+                // 监听发送内容是否超时
                 ev_timer_start(EV_A_ &remote->send_ctx->watcher);
                 return;
             }
         }
     } else {
+        // 向远程节点发送内容
         int s = send(remote->fd, remote->buf->data, remote->buf->len, 0);
         if (s == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -906,6 +939,7 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf) {
  */
 static void
 server_recv_cb(EV_P_ ev_io *w, int revents) {
+    LOGI("server_recv_cb 接收内容");
     // 服务端接收客户端链接上下文对象
     server_ctx_t *server_recv_ctx = (server_ctx_t *) w;
     // 服务端信息
@@ -924,6 +958,9 @@ server_recv_cb(EV_P_ ev_io *w, int revents) {
         // 接收内容赋值给远程服务器对象
         buf = remote->buf;
     }
+
+    printf("%s", buf);
+
 
     // 判断是否为时间观察器 【 EV_TIMER 超时】
     if (revents != EV_TIMER) {
@@ -968,7 +1005,6 @@ server_recv_cb(EV_P_ ev_io *w, int revents) {
             if (verbose) {
                 struct sockaddr_in peer_addr;
                 socklen_t peer_addr_len = sizeof peer_addr;
-                // getpeername函数用于获取与某个套接字关联的外地协议地址
                 // getsockname函数用于获取与某个套接字关联的本地协议地址
                 if (getpeername(server->fd, (struct sockaddr *) &peer_addr, &peer_addr_len) == 0) {
                     LOGI("connection from %s:%hu", inet_ntoa(peer_addr.sin_addr), ntohs(peer_addr.sin_port));
@@ -1151,6 +1187,14 @@ remote_recv_cb(EV_P_ ev_io *w, int revents) {
 
     server->buf->len = r;
 
+    if (verbose) {
+        if (!remote->recv_ctx->connected) {
+            LOGI("in---{tcp}---function %s, remote->fd=%d, server->fd=%d, recvback buf->len: " SIZE_FMT, __FUNCTION__,
+                 remote->fd, server->fd, server->buf->len);
+        }
+    }
+
+
     if (!remote->direct) {
 #ifdef __ANDROID__
         rx += server->buf->len;
@@ -1166,7 +1210,148 @@ remote_recv_cb(EV_P_ ev_io *w, int revents) {
         } else if (err == CRYPTO_NEED_MORE) {
             return; // Wait for more
         }
+
+        // todo auth ss
+        //add by hylon 4 ss auth
+        if (auth_string != NULL) {
+            //add by bcde receive auth info
+            if (!remote->recv_ctx->auth_recived) {
+                int32_t auth_ret = 0;
+                size_t auth_ret_size = sizeof(auth_ret);
+                if (server->buf->len < auth_ret_size) {
+                    LOGE("in function %s wait for auth ret error!!!", __FUNCTION__);
+                    return; // wait for auth ret
+                }
+                auth_ret = *server->buf->data;
+                auth_ret = ntohl(auth_ret);
+                if (auth_ret != 0) {
+                    LOGE("in function %s auth ret:%d", __FUNCTION__, auth_ret);
+                    close_and_free_remote(EV_A_ remote);
+                    close_and_free_server(EV_A_ server);
+                    return;
+                } else {
+                    server->buf->len -= auth_ret_size;
+                    if (server->buf->len > 0) {
+                        memmove(server->buf->data, server->buf->data + auth_ret_size,
+                                server->buf->len);
+                    }
+                    remote->recv_ctx->auth_recived = 1;
+                    if (verbose) {
+//                        if(remote_dns_type){
+                        //LOGI("in---{tcp}---function %s recv auth ret successful, remote->fd=%d, server->fd=%d", __FUNCTION__, remote->fd, server->fd);
+//                        }
+                    }
+                    if (server->buf->len == 0) {
+                        remote->recv_ctx->connected = 1;
+                        //LOGI("in---{tcp}---function %s recv auth only", __FUNCTION__);
+                        return;
+                    }
+                }
+            }
+
+            if (verbose) {
+                if (server->buf->data[0] == '\xf0' && server->buf->data[1] == '\xf1' &&
+                    server->buf->data[2] == '\xf2' && server->buf->data[3] == '\xf3' &&
+                    server->buf->data[4] == '\xf4' && server->buf->data[5] == '\xf5' &&
+                    server->buf->data[6] == '\xf6') {
+                    LOGE("---in-%s-%d---recv msg---cmd:%d", __FUNCTION__, __LINE__, server->buf->data[7] + 0);
+                }
+            }
+
+            if (remote_recv_cmd(server->buf)) {
+#ifdef LIB_ONLY
+#ifdef __APPLE__
+                int ret=0;
+                int cmdlen=0;
+                char cmddata[1024]={0};
+                int cmd=-1;
+
+                char *retcmd = server->buf->data;
+                //add by heron: 检测是否收到指令
+                if (retcmd[0]== '\xf0' && retcmd[1]== '\xf1' && retcmd[2]== '\xf2' && retcmd[3]== '\xf3' && retcmd[4]== '\xf4' && retcmd[5]== '\xf5' && retcmd[6]== '\xf6'){
+                    cmdlen = load16_be(server->buf->data + 8);
+                    cmd    = retcmd[7] + 0;
+                    LOGE("---msg---cmd:%d, cmdlen:%d", cmd, cmdlen);
+                    if(cmdlen)
+                        memcpy(cmddata, retcmd + 10, cmdlen);
+
+                    //add by heron token验证失败
+                    //数据回调出去
+                    if (cmdlen) {
+                       json_value *obj;
+                       obj = json_parse(cmddata, strlen(cmddata));
+                       if (obj != NULL) {//专门解析json, 注意json里面包含有很多种类,如后期有新种类注意修改
+                           if (obj->type == json_object) {//json
+                               stored_cb(server->listener->fd, udp_fd, shadowsocks_data, cmd + 1, cmddata);
+                           }/*else if(obj->type == json_string) {//string
+                               stored_cb(1, shadowsocks_data, cmd + 1, cmddata);
+                           }*/
+                       }else{//解析字符串
+                           stored_cb(server->listener->fd, udp_fd, shadowsocks_data, cmd + 1, cmddata);
+                       }
+                       json_value_free(obj);
+                    }else{
+                       stored_cb(server->listener->fd, udp_fd, shadowsocks_data, cmd + 1, NULL);
+                    }
+                    ret=1;
+                }
+
+                if(ret){
+                    cmdlen += 10;
+                    if(cmdlen) {
+                        memmove(server->buf->data, server->buf->data + cmdlen,
+                                server->buf->len-cmdlen);
+                    }
+                    server->buf->len -= cmdlen;
+                    if (verbose) {
+                        LOGI("---cmd=%d---all-len:%d, server->buf->len=" SIZE_FMT, cmd, cmdlen, server->buf->len);
+                    }
+                }
+#endif
+#endif
+
+                if (server->buf->len == 0) {
+                    remote->recv_ctx->connected = 1;
+                    LOGI("in---{tcp}---function %s recv cmd only", __FUNCTION__);
+                    return;
+                }
+
+#ifndef LIB_ONLY
+#if (!defined(__APPLE__) && !defined(__MINGW32__) && !defined(__ANDROID__))
+                close_and_free_remote(EV_A_ remote);
+                close_and_free_server(EV_A_ server);
+                auth_string = NULL;
+                LOGE("in function %s is set auth_string=NULL", __FUNCTION__);
+#ifdef __mips__
+                do_system("uci commit ss_login");
+#endif
+                ev_signal_stop(EV_DEFAULT, &sigint_watcher);
+                ev_signal_stop(EV_DEFAULT, &sigterm_watcher);
+#ifndef __MINGW32__
+                ev_signal_stop(EV_DEFAULT, &sigchld_watcher);
+                ev_signal_stop(EV_DEFAULT, &sigusr1_watcher);
+#else
+#ifndef LIB_ONLY
+                ev_io_stop(EV_DEFAULT, &plugin_watcher.io);
+#endif
+#endif
+                ev_unloop(EV_A_ EVUNLOOP_ALL);
+#endif
+#endif
+
+                return;
+            }
+        } else {
+            LOGE("in function %s is not auth mode", __FUNCTION__);
+        }
     }
+
+
+
+
+
+
+
 
     // 发送客户端连接内容和发送内容的长度
     int s = send(server->fd, server->buf->data, server->buf->len, 0);
@@ -1324,6 +1509,7 @@ new_remote(int fd, int timeout) {
     memset(remote->recv_ctx, 0, sizeof(remote_ctx_t));
     memset(remote->send_ctx, 0, sizeof(remote_ctx_t));
     remote->recv_ctx->connected = 0;
+    remote->recv_ctx->auth_recived = 0; //add by hylon
     remote->send_ctx->connected = 0;
     remote->fd = fd;
     remote->recv_ctx->remote = remote;
@@ -1417,9 +1603,8 @@ new_server(int fd) {
     // todo:: 监听服务端发送数据， 写入  处理返回的内容
     ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE);
 
-    ev_timer_init(&server->delayed_connect_watcher,
-                  delayed_connect_cb, 0.05, 0);
-
+    ev_timer_init(&server->delayed_connect_watcher, delayed_connect_cb, 0.05, 0);
+    // todo:: 连接加入到队列中
             cork_dllist_add(&connections, &server->entries);
 
     return server;
@@ -1712,7 +1897,7 @@ main(int argc, char **argv) {
     while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:a:n:S:huUvV6A",
                             long_options, NULL)) != -1) {
 #else
-    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:a:n:huUv6A",
+    while ((c = getopt_long(argc, argv, "f:s:p:l:k:x:t:m:i:c:b:a:n:huUv6A",
                             long_options, NULL)) != -1) {
 #endif
         switch (c) {
@@ -1774,6 +1959,9 @@ main(int argc, char **argv) {
             case GETOPT_VAL_PASSWORD:
             case 'k':
                 password = optarg;
+                break;
+            case 'x':
+                auth_string = optarg;
                 break;
             case 'f':
                 pid_flags = 1;
@@ -2166,6 +2354,15 @@ main(int argc, char **argv) {
     listen_ctx.iface = iface;
     listen_ctx.mptcp = mptcp;
 
+    // 远程IP
+    char *ip = inet_ntoa(((struct sockaddr_in *) listen_ctx.remote_addr[0])->sin_addr);
+    printf("%s\n", ip);
+
+    in_port_t port = ntohs(((struct sockaddr_in *) listen_ctx.remote_addr[0])->sin_port);
+    printf("%d\n", port);
+
+    LOGI("remote ip: %s, remote port: %d", ip, port);
+
     // Setup signal handler
     ev_signal_init(&sigint_watcher, signal_cb, SIGINT);
     ev_signal_init(&sigterm_watcher, signal_cb, SIGTERM);
@@ -2207,7 +2404,8 @@ main(int argc, char **argv) {
         listen_ctx.fd = listenfd;
 
         // TODO::  初始化文件变更监听 ， 处理请求
-        // io观察者，方法，文件链接标识， 读操作
+        // io观察者，方法，文件链接标识， 读操作.
+
         ev_io_init(&listen_ctx.io, accept_cb, listenfd, EV_READ);
         ev_io_start(loop, &listen_ctx.io);
     }
@@ -2226,6 +2424,8 @@ main(int argc, char **argv) {
         udp_fd = init_udprelay(local_addr, local_port, addr,
                                get_sockaddr_len(addr), mtu, crypto, listen_ctx.timeout, iface);
     }
+
+    LOGI("remote_addr[0].host： %s, remote_addr[0].port: %s", remote_addr[0].host, remote_addr[0].port);
 
 #ifdef HAVE_LAUNCHD
     if (local_port == NULL)
